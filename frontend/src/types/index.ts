@@ -1,11 +1,11 @@
-// Define types to match backend structures
 
 export interface Flashcard {
   readonly front: string;
   readonly back: string;
-  readonly hint?: string;
+  readonly hint?: string; // Hint is optional as requested
   readonly tags: ReadonlyArray<string>;
 }
+
 
 export enum AnswerDifficulty {
   Wrong = 0,
@@ -13,21 +13,26 @@ export enum AnswerDifficulty {
   Easy = 2,
 }
 
+
 export interface PracticeSession {
-  cards: Flashcard[];
   day: number;
+  cards: Flashcard[];
+
 }
+
 
 export interface UpdateRequest {
   cardFront: string;
-  cardBack: string;
   difficulty: AnswerDifficulty;
+  cardBack: string;
+
 }
 
+
 export interface ProgressStats {
-  totalCards: number;
-  cardsByBucket: Record<number, number>;
-  successRate: number;
   averageMovesPerCard: number;
+  totalCards: number;
   totalPracticeEvents: number;
+  successRate: number; // Percentage
+  cardsByBucket: Record<number, number>;
 }

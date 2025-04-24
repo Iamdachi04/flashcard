@@ -17,17 +17,18 @@ app.use(express.json());
 // GET /api/practice - Get cards to practice for the current day
 app.get("/api/practice", (req: Request, res: Response) => {
   try {
-    const day = state.getCurrentDay();
+    const currentDay = state.getCurrentDay();
     const bucketsMap = state.getBuckets();
+
     // Convert Map to Array<Set> for the practice function
-    const bucketSets = logic.toBucketSets(bucketsMap);
-    const cardsToPracticeSet = logic.practice(bucketSets, day);
+    const bucketSetsArray = logic.toBucketSets(bucketsMap);
+    const cardsToPracticeSet = logic.practice(bucketSetsArray, currentDay);
 
     // Convert Set to Array for JSON response
     const cardsToPracticeArray = Array.from(cardsToPracticeSet);
 
-    console.log(`Day ${day}: Practice ${cardsToPracticeArray.length} cards`);
-    res.json({ cards: cardsToPracticeArray, day });
+    console.log(`Day ${currentDay}: Practice ${cardsToPracticeArray.length} cards`);
+    res.json({ cards: cardsToPracticeArray, day: currentDay });
   } catch (error) {
     console.error("Error getting practice cards:", error);
     res.status(500).json({ message: "Error fetching practice cards" });
@@ -37,43 +38,64 @@ app.get("/api/practice", (req: Request, res: Response) => {
 // POST /api/update - Update a card's bucket after practice
 app.post("/api/update", (req: Request, res: Response) => {
   try {
-    const { cardFront, cardBack, difficulty } = req.body as UpdateRequest;
+    const updateData = req.body as UpdateRequest;
+    const cardFrontFromRequest = updateData.cardFront;
+    const cardBackFromRequest = updateData.cardBack;
+    const difficultyFromRequest = updateData.difficulty;
 
     // Validate difficulty
-    if (!(difficulty in AnswerDifficulty)) {
-      res.status(400).json({ message: "Invalid difficulty level" });
+    const validDifficulties = Object.values(AnswerDifficulty);
+    const difficultyIsValid = validDifficulties.includes(difficultyFromRequest);
+
+    if (!difficultyIsValid) {
+      res.status(400).json({ message: "Invalid difficulty level provided" });
       return;
     }
 
-    const card = state.findCard(cardFront, cardBack);
-    if (!card) {
+    const targetCard = state.findCard(cardFrontFromRequest, cardBackFromRequest);
+    if (!targetCard) {
       res.status(404).json({ message: "Card not found" });
       return;
     }
 
     const currentBuckets = state.getBuckets();
-    const previousBucket = state.findCardBucket(card);
+    const previousBucket = state.findCardBucket(targetCard);
 
-    // Use update function
-    const updatedBuckets = logic.update(currentBuckets, card, difficulty);
+    // Use update function to calculate the new bucket configuration
+    const updatedBuckets = logic.update(currentBuckets, targetCard, difficultyFromRequest);
+
+    // Update the application state with the new buckets
     state.setBuckets(updatedBuckets);
 
-    // Add to history
-    const newBucket = state.findCardBucket(card);
+    // Determine the card's new bucket after the state update
+    const newBucket = state.findCardBucket(targetCard);
+
+    // Prepare data for history record
+    const cardFrontForHistory = targetCard.front;
+    const cardBackForHistory = targetCard.back;
+    const timestampForHistory = Date.now();
+    const difficultyForHistory = difficultyFromRequest;
+    const previousBucketForHistory = previousBucket ?? -1;
+    const newBucketForHistory = newBucket ?? -1;
+
+    // Create history record object
     const historyRecord: PracticeRecord = {
-      cardFront: card.front,
-      cardBack: card.back,
-      timestamp: Date.now(),
-      difficulty,
-      previousBucket: previousBucket ?? -1,
-      newBucket: newBucket ?? -1,
+      cardFront: cardFrontForHistory,
+      cardBack: cardBackForHistory,
+      timestamp: timestampForHistory,
+      difficulty: difficultyForHistory,
+      previousBucket: previousBucketForHistory,
+      newBucket: newBucketForHistory,
     };
+
+    // Add to history
     state.addHistoryRecord(historyRecord);
 
     console.log(
-      `Updated card "${card.front}": Difficulty ${AnswerDifficulty[difficulty]}, New Bucket ${newBucket}`
+      `Updated card "${targetCard.front}" with difficulty "${AnswerDifficulty[difficultyFromRequest]}". Moved from bucket ${previousBucket} to ${newBucket}.`
     );
     res.status(200).json({ message: "Card updated successfully" });
+
   } catch (error) {
     console.error("Error updating card:", error);
     res.status(500).json({ message: "Error updating card" });
@@ -83,25 +105,35 @@ app.post("/api/update", (req: Request, res: Response) => {
 // GET /api/hint - Get a hint for a card
 app.get("/api/hint", (req: Request, res: Response) => {
   try {
-    const { cardFront, cardBack } = req.query;
+    const cardFrontQuery = req.query.cardFront;
+    const cardBackQuery = req.query.cardBack;
 
-    if (typeof cardFront !== "string" || typeof cardBack !== "string") {
+    // Validate query parameters
+    const cardFrontIsValid = typeof cardFrontQuery === "string";
+    const cardBackIsValid = typeof cardBackQuery === "string";
+
+    if (!cardFrontIsValid || !cardBackIsValid) {
       res
         .status(400)
-        .json({ message: "Missing cardFront or cardBack query parameter" });
+        .json({ message: "Both 'cardFront' and 'cardBack' query parameters are required and must be strings." });
       return;
     }
 
-    const card = state.findCard(cardFront, cardBack);
-    if (!card) {
+    const cardFront = cardFrontQuery as string;
+    const cardBack = cardBackQuery as string;
+
+    const targetCard = state.findCard(cardFront, cardBack);
+    if (!targetCard) {
       res.status(404).json({ message: "Card not found" });
       return;
     }
 
     // Use getHint function
-    const hint = logic.getHint(card);
-    console.log(`Hint requested for "${card.front}": ${hint}`);
-    res.json({ hint });
+    const hintText = logic.getHint(targetCard);
+
+    console.log(`Hint requested for card "${targetCard.front}".`);
+    res.json({ hint: hintText });
+
   } catch (error) {
     console.error("Error getting hint:", error);
     res.status(500).json({ message: "Error getting hint" });
@@ -111,13 +143,13 @@ app.get("/api/hint", (req: Request, res: Response) => {
 // GET /api/progress - Get learning progress statistics
 app.get("/api/progress", (req: Request, res: Response) => {
   try {
-    const buckets = state.getBuckets();
-    const history = state.getHistory();
+    const currentBuckets = state.getBuckets();
+    const completeHistory = state.getHistory();
 
     // Use computeProgress function
-    const progress: ProgressStats = logic.computeProgress(buckets, history);
+    const progressStats: ProgressStats = logic.computeProgress(currentBuckets, completeHistory);
 
-    res.json(progress);
+    res.json(progressStats);
   } catch (error) {
     console.error("Error computing progress:", error);
     res.status(500).json({ message: "Error computing progress" });
@@ -128,14 +160,15 @@ app.get("/api/progress", (req: Request, res: Response) => {
 app.post("/api/day/next", (req: Request, res: Response) => {
   state.incrementDay();
   const newDay = state.getCurrentDay();
-  console.log(`Advanced to Day ${newDay}`);
+
+  console.log(`Simulation day advanced. Current Day is now ${newDay}`);
   res
     .status(200)
-    .json({ message: `Advanced to day ${newDay}`, currentDay: newDay });
+    .json({ message: `Advanced simulation to day ${newDay}`, currentDay: newDay });
 });
 
 // --- Start Server ---
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);
-  console.log(`Current Day: ${state.getCurrentDay()}`);
+  console.log(`Initial Current Day: ${state.getCurrentDay()}`);
 });

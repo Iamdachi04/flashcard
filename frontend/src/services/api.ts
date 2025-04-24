@@ -1,55 +1,111 @@
-import axios from "axios";
+// frontend/src/services/api.ts
+
+import axios from 'axios';
 import {
   PracticeSession,
-  UpdateRequest,
   AnswerDifficulty,
-  ProgressStats,
   Flashcard,
-} from "../types";
+  ProgressStats,
+  UpdateRequest, // Though we construct it inline, importing clarifies intent
+} from '../types';
 
-// Configure base URL for the backend API
-const API_BASE_URL = "http://localhost:3001/api";
+// Define the base URL for the backend API
+// Ensure this port (3001) matches your running backend server
+const API_BASE_URL = 'http://localhost:3001/api';
 
+// Create an Axios instance with the base URL pre-configured
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
 });
 
+/**
+ * Fetches the list of cards to practice for the current day.
+ * @returns A Promise resolving to the PracticeSession data.
+ */
 export const fetchPracticeCards = async (): Promise<PracticeSession> => {
-  const response = await apiClient.get<PracticeSession>("/practice");
-  return response.data;
+  try {
+    const response = await apiClient.get<PracticeSession>('/practice');
+    console.log('Fetched practice cards:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching practice cards:', error);
+    // Re-throw or handle more gracefully (e.g., return default state)
+    throw error;
+  }
 };
 
+/**
+ * Submits the user's answer (difficulty) for a specific card.
+ * @param cardFront - The front text of the card.
+ * @param cardBack - The back text of the card.
+ * @param difficulty - The difficulty level chosen by the user.
+ * @returns A Promise resolving when the update is successful.
+ */
 export const submitAnswer = async (
   cardFront: string,
   cardBack: string,
   difficulty: AnswerDifficulty
 ): Promise<void> => {
-  const payload: UpdateRequest = { cardFront, cardBack, difficulty };
-  await apiClient.post("/update", payload);
+  try {
+    const payload: UpdateRequest = { cardFront, cardBack, difficulty };
+    await apiClient.post('/update', payload);
+    console.log('Submitted answer for:', cardFront, 'Difficulty:', AnswerDifficulty[difficulty]);
+  } catch (error) {
+    console.error('Error submitting answer:', error);
+    throw error;
+  }
 };
 
-export const fetchHint = async (card: Flashcard): Promise<string> => {
-  const response = await apiClient.get<{ hint: string }>("/hint", {
-    params: {
-      cardFront: card.front,
-      cardBack: card.back,
-    },
-  });
-  return response.data.hint;
+/**
+ * Fetches a hint for a given flashcard.
+ * Note: Backend expects cardFront and cardBack as query parameters.
+ * @param cardFront - The front text of the card.
+ * @param cardBack - The back text of the card.
+ * @returns A Promise resolving to the hint string.
+ */
+export const fetchHint = async (cardFront: string, cardBack: string): Promise<string> => {
+  try {
+    // Use `params` option for GET request query parameters
+    const response = await apiClient.get<{ hint: string }>('/hint', {
+      params: { cardFront, cardBack },
+    });
+    console.log('Fetched hint for:', cardFront, 'Hint:', response.data.hint);
+    return response.data.hint;
+  } catch (error) {
+    console.error('Error fetching hint:', error);
+    throw error;
+  }
 };
 
+/**
+ * Fetches the overall learning progress statistics.
+ * @returns A Promise resolving to the ProgressStats data.
+ */
 export const fetchProgress = async (): Promise<ProgressStats> => {
-  const response = await apiClient.get<ProgressStats>("/progress");
-  return response.data;
+  try {
+    const response = await apiClient.get<ProgressStats>('/progress');
+    console.log('Fetched progress:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching progress:', error);
+    throw error;
+  }
 };
 
+/**
+ * Tells the backend to advance to the next simulation day.
+ * @returns A Promise resolving to an object containing the new current day.
+ */
 export const advanceDay = async (): Promise<{ currentDay: number }> => {
-  const response = await apiClient.post<{
-    message: string;
-    currentDay: number;
-  }>("/day/next");
-  return response.data;
+  try {
+    const response = await apiClient.post<{ currentDay: number }>('/day/next');
+    console.log('Advanced to day:', response.data.currentDay);
+    return response.data;
+  } catch (error) {
+    console.error('Error advancing day:', error);
+    throw error;
+  }
 };

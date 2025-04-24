@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
-import { Flashcard, AnswerDifficulty } from "../types";
-import {
-  fetchPracticeCards,
-  submitAnswer,
-  advanceDay,
-  fetchHint,
-} from "../services/api";
+// frontend/src/components/PracticeView.tsx
 
-const PracticeView = () => {
+import React, { useState, useEffect, useCallback } from 'react';
+import { Flashcard, AnswerDifficulty, PracticeSession } from '../types';
+import { fetchPracticeCards, submitAnswer, advanceDay } from '../services/api';
+import FlashcardDisplay from './FlashcardDisplay';
+
+const PracticeView: React.FC = () => {
   const [practiceCards, setPracticeCards] = useState<Flashcard[]>([]);
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
   const [showBack, setShowBack] = useState<boolean>(false);
@@ -15,168 +13,194 @@ const PracticeView = () => {
   const [error, setError] = useState<string | null>(null);
   const [day, setDay] = useState<number>(0);
   const [sessionFinished, setSessionFinished] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Prevent double clicks
 
-  const [hint, setHint] = useState<string | null>(null);
-  const [loadingHint, setLoadingHint] = useState(false);
-  const [hintError, setHintError] = useState<string | null>(null);
-
-  const loadPracticeCards = async () => {
+  // Function to load cards for the current day
+  const loadPracticeCards = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     setSessionFinished(false);
+    setPracticeCards([]); // Clear old cards immediately
     setCurrentCardIndex(0);
     setShowBack(false);
+
     try {
-      const session = await fetchPracticeCards();
-      setPracticeCards(session.cards);
-      setDay(session.day);
-      if (session.cards.length === 0) {
-        setSessionFinished(true); // No cards to practice today
+      const data: PracticeSession = await fetchPracticeCards();
+      setPracticeCards(data.cards);
+      setDay(data.day);
+      if (data.cards.length === 0) {
+        setSessionFinished(true); // No cards left for today
       }
     } catch (err) {
-      console.error("Failed to fetch practice cards:", err);
-      setError("Could not load cards. Is the backend running?");
+      console.error('Failed to load practice cards:', err);
+      setError('Failed to load practice cards. Please try again later.');
+      // Optionally: Add a retry button here
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []); // No dependencies, safe to memoize
 
+  // Load cards when the component mounts
   useEffect(() => {
     loadPracticeCards();
-  }, []); // Load cards on component mount
+  }, [loadPracticeCards]); // Include loadPracticeCards in dependency array
 
+  // Handler to reveal the back of the card
   const handleShowBack = () => {
     setShowBack(true);
   };
 
+  // Handler for when the user selects a difficulty
   const handleAnswer = async (difficulty: AnswerDifficulty) => {
-    if (currentCardIndex >= practiceCards.length) return;
+    if (isSubmitting || currentCardIndex >= practiceCards.length) return; // Prevent multiple submissions or out-of-bounds access
 
     const currentCard = practiceCards[currentCardIndex];
+    if (!currentCard) return; // Safety check
+
+    setIsSubmitting(true); // Indicate submission is in progress
+    setError(null); // Clear previous errors
+
     try {
       await submitAnswer(currentCard.front, currentCard.back, difficulty);
-      // Move to the next card
+
+      // Move to the next card or finish the session
       const nextIndex = currentCardIndex + 1;
-      if (nextIndex < practiceCards.length) {
-        setCurrentCardIndex(nextIndex);
-        setHint(null);
-        setShowBack(false); // Hide back for the new card
-      } else {
-        // Finished practicing all cards for this session
+      if (nextIndex >= practiceCards.length) {
         setSessionFinished(true);
-        console.log("Practice session finished for Day", day);
+      } else {
+        setCurrentCardIndex(nextIndex);
+        setShowBack(false); // Hide back for the new card
+        // Hint state is managed within FlashcardDisplay, will reset on re-render
       }
     } catch (err) {
-      console.error("Failed to submit answer:", err);
-      setError("Failed to save progress. Please try again.");
+      console.error('Failed to submit answer:', err);
+      setError('Failed to submit answer. Please try again.');
+      // Keep the user on the current card to allow retry
+    } finally {
+       setIsSubmitting(false); // Re-enable buttons
     }
   };
 
+  // Handler for the "Go to Next Day" button
   const handleNextDay = async () => {
-    try {
-      const { currentDay } = await advanceDay();
-      setDay(currentDay);
-      // Reload cards for the new day
-      await loadPracticeCards();
-    } catch (err) {
-      console.error("Failed to advance day:", err);
-      setError("Could not advance to the next day.");
-    }
+     setError(null); // Clear previous errors before trying again
+     setIsLoading(true); // Show loading indicator for day change + fetch
+     try {
+       await advanceDay();
+       await loadPracticeCards(); // Reload cards for the new day
+     } catch (err) {
+        console.error('Failed to advance day or load new cards:', err);
+        setError('Failed to advance to the next day. Please try again.');
+        setIsLoading(false); // Ensure loading is turned off on error
+     }
+     // setIsLoading(false) is handled by loadPracticeCards' finally block on success
   };
 
-  if (isLoading) {
-    return <div className="loading">Loading practice cards...</div>;
+  // --- Rendering Logic ---
+
+  if (isLoading && practiceCards.length === 0) { // Show initial loading
+    return <div>Loading practice session...</div>;
   }
 
-  if (error) {
-    return <div className="error-message">Error: {error}</div>;
+  if (error && !isLoading) { // Show error only if not loading (prevents flash of error during load)
+    return <div style={{ color: 'red' }}>Error: {error}</div>;
   }
 
   if (sessionFinished) {
     return (
-      <div className="session-finished">
-        <div className="day-counter">Day {day}</div>
-        <p>No more cards to practice today!</p>
-        <button className="btn btn-primary" onClick={handleNextDay}>
-          Go to Next Day
+      <div>
+        <h2>Session Complete for Day {day}!</h2>
+        <p>You have reviewed all cards scheduled for today.</p>
+        <button onClick={handleNextDay} disabled={isLoading}>
+          {isLoading ? 'Loading Next Day...' : 'Go to Next Day'}
         </button>
+         {error && <div style={{ color: 'red', marginTop: '10px' }}>Error: {error}</div>}
       </div>
     );
   }
 
+  // Ensure we have a card to display
+  if (practiceCards.length === 0 || currentCardIndex >= practiceCards.length) {
+      // This might happen briefly or if loading failed silently
+      return <div>No cards available or loading...</div>;
+  }
+
   const currentCard = practiceCards[currentCardIndex];
 
-  const handleGetHint = async () => {
-    if (!currentCard) return;
-    setLoadingHint(true);
-    setHintError(null);
-    setHint(null);
-    try {
-      const fetchedHint = await fetchHint(currentCard);
-      setHint(fetchedHint);
-    } catch (err) {
-      console.error("Failed to fetch hint:", err);
-      setHintError("Could not load hint.");
-    } finally {
-      setLoadingHint(false);
-    }
+  // Basic layout styling
+  const viewStyle: React.CSSProperties = {
+      maxWidth: '600px',
+      margin: '20px auto',
+      padding: '20px',
+      border: '1px solid #ddd',
+      borderRadius: '8px',
+      backgroundColor: '#fff',
   };
 
+  const controlsStyle: React.CSSProperties = {
+      marginTop: '20px',
+      display: 'flex',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+      padding: '10px 20px',
+      fontSize: '1em',
+      cursor: 'pointer',
+  };
+
+  const infoStyle: React.CSSProperties = {
+      textAlign: 'center',
+      marginBottom: '15px',
+      color: '#555',
+  };
+
+
   return (
-    <div className="practice-container">
-      <div className="day-counter">Day {day}</div>
-      <p className="card-counter">
-        Card {currentCardIndex + 1} of {practiceCards.length}
-      </p>
-      {currentCard ? (
-        <div className={`flashcard ${showBack ? "flashcard-back" : ""}`}>
-          {showBack ? currentCard.back : currentCard.front}
-        </div>
-      ) : (
-        <p>Something went wrong, no card to display.</p>
-      )}
+    <div style={viewStyle}>
+       <div style={infoStyle}>
+          Day: {day} | Card {currentCardIndex + 1} of {practiceCards.length}
+       </div>
 
-      {!showBack && (
-        <div style={{ marginTop: "15px" }}>
-          <button onClick={handleGetHint} disabled={loadingHint}>
-            {loadingHint ? "Loading Hint..." : "Get Hint"}
+      <FlashcardDisplay card={currentCard} showBack={showBack} />
+
+      {error && <div style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>Error: {error}</div>}
+
+
+      <div style={controlsStyle}>
+        {!showBack ? (
+          <button style={buttonStyle} onClick={handleShowBack} disabled={isSubmitting || isLoading}>
+            Show Answer
           </button>
-          {hint && (
-            <p style={{ color: "gray", fontStyle: "italic" }}>Hint: {hint}</p>
-          )}
-          {hintError && <p style={{ color: "red" }}>{hintError}</p>}
-        </div>
-      )}
-
-      {!showBack ? (
-        <button className="btn btn-primary" onClick={handleShowBack}>
-          Show Answer
-        </button>
-      ) : (
-        <div>
-          <p className="difficulty-text">How difficult was this card?</p>
-          <div>
+        ) : (
+          <>
             <button
-              className="btn btn-wrong"
+              style={{...buttonStyle, backgroundColor: '#ffdddd'}} // Reddish for wrong
               onClick={() => handleAnswer(AnswerDifficulty.Wrong)}
+              disabled={isSubmitting || isLoading}
             >
               Wrong
             </button>
             <button
-              className="btn btn-hard"
+              style={{...buttonStyle, backgroundColor: '#ffffcc'}} // Yellowish for hard
               onClick={() => handleAnswer(AnswerDifficulty.Hard)}
+              disabled={isSubmitting || isLoading}
             >
               Hard
             </button>
             <button
-              className="btn btn-easy"
+               style={{...buttonStyle, backgroundColor: '#ddffdd'}} // Greenish for easy
               onClick={() => handleAnswer(AnswerDifficulty.Easy)}
+              disabled={isSubmitting || isLoading}
             >
               Easy
             </button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
+         {/* Show loading indicator during submissions or day changes */}
+         {(isSubmitting || isLoading) && <div style={{textAlign: 'center', marginTop: '10px'}}>Processing...</div>}
     </div>
   );
 };
