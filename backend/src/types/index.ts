@@ -33,4 +33,20 @@ export interface PracticeRecord {
   newBucket: number;
 }
 
+export interface FlashcardRow {
+  id: number;
+  front: string;
+  back: string;
+  hint: string | null;
+  tags: string | null;
+  scheduledDay: number;
+}
+
+export interface PracticeRecordRow {
+  id: number;
+  timestamp: number;
+  difficulty: number;
+  oldday: number;
+  newday: number;
+}
 export { Flashcard, AnswerDifficulty, BucketMap };
