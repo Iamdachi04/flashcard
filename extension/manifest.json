@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "Flashcard Adder",
+    "version": "0.1",
+    "description": "Add selected text as flashcards",
+    "permissions": ["contextMenus", "activeTab", "storage"],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"]
+      }
+    ]
+  }
