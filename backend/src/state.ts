@@ -3,6 +3,14 @@ import { Flashcard, BucketMap, AnswerDifficulty } from "./logic/flashcards";
 import { PracticeRecord, PracticeRecordRow, FlashcardRow } from "./types";
 import * as utils from "./utils/database";
 
+// --- State ---
+/**
+ * The state of the application has mainly been moved to the database.
+ * Cards are stored in the "flashcards" table, and the practice history is stored in the "PracticeRecords" table.
+ * Current day has been moved to frontend thus rendering the backend stateless to prevent mismatch
+ * Any API request that depends on "Day" will contain the current day
+ */
+
 // --- Initial Data ---
 // Define some sample flashcards
 const initialCards: Flashcard[] = [
