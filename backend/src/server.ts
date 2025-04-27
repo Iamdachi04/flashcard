@@ -4,9 +4,18 @@ import * as logic from "./logic/algorithm";
 import { Flashcard, AnswerDifficulty } from "./logic/flashcards";
 import * as state from "./state";
 import { UpdateRequest, ProgressStats, PracticeRecord } from "./types";
+import Database from "better-sqlite3";
+import * as utils from "./utils/database";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// --- Database ---
+
+const db = new Database(":memory:");
+
+// Execute a query to create the tables
+utils.createTables(db);
 
 // --- Middleware ---
 app.use(cors());
@@ -27,7 +36,9 @@ app.get("/api/practice", (req: Request, res: Response) => {
     // Convert Set to Array for JSON response
     const cardsToPracticeArray = Array.from(cardsToPracticeSet);
 
-    console.log(`Day ${currentDay}: Practice ${cardsToPracticeArray.length} cards`);
+    console.log(
+      `Day ${currentDay}: Practice ${cardsToPracticeArray.length} cards`
+    );
     res.json({ cards: cardsToPracticeArray, day: currentDay });
   } catch (error) {
     console.error("Error getting practice cards:", error);
@@ -52,7 +63,10 @@ app.post("/api/update", (req: Request, res: Response) => {
       return;
     }
 
-    const targetCard = state.findCard(cardFrontFromRequest, cardBackFromRequest);
+    const targetCard = state.findCard(
+      cardFrontFromRequest,
+      cardBackFromRequest
+    );
     if (!targetCard) {
       res.status(404).json({ message: "Card not found" });
       return;
@@ -62,7 +76,11 @@ app.post("/api/update", (req: Request, res: Response) => {
     const previousBucket = state.findCardBucket(targetCard);
 
     // Use update function to calculate the new bucket configuration
-    const updatedBuckets = logic.update(currentBuckets, targetCard, difficultyFromRequest);
+    const updatedBuckets = logic.update(
+      currentBuckets,
+      targetCard,
+      difficultyFromRequest
+    );
 
     // Update the application state with the new buckets
     state.setBuckets(updatedBuckets);
@@ -95,7 +113,6 @@ app.post("/api/update", (req: Request, res: Response) => {
       `Updated card "${targetCard.front}" with difficulty "${AnswerDifficulty[difficultyFromRequest]}". Moved from bucket ${previousBucket} to ${newBucket}.`
     );
     res.status(200).json({ message: "Card updated successfully" });
-
   } catch (error) {
     console.error("Error updating card:", error);
     res.status(500).json({ message: "Error updating card" });
@@ -113,9 +130,10 @@ app.get("/api/hint", (req: Request, res: Response) => {
     const cardBackIsValid = typeof cardBackQuery === "string";
 
     if (!cardFrontIsValid || !cardBackIsValid) {
-      res
-        .status(400)
-        .json({ message: "Both 'cardFront' and 'cardBack' query parameters are required and must be strings." });
+      res.status(400).json({
+        message:
+          "Both 'cardFront' and 'cardBack' query parameters are required and must be strings.",
+      });
       return;
     }
 
@@ -133,7 +151,6 @@ app.get("/api/hint", (req: Request, res: Response) => {
 
     console.log(`Hint requested for card "${targetCard.front}".`);
     res.json({ hint: hintText });
-
   } catch (error) {
     console.error("Error getting hint:", error);
     res.status(500).json({ message: "Error getting hint" });
@@ -147,7 +164,10 @@ app.get("/api/progress", (req: Request, res: Response) => {
     const completeHistory = state.getHistory();
 
     // Use computeProgress function
-    const progressStats: ProgressStats = logic.computeProgress(currentBuckets, completeHistory);
+    const progressStats: ProgressStats = logic.computeProgress(
+      currentBuckets,
+      completeHistory
+    );
 
     res.json(progressStats);
   } catch (error) {
@@ -162,9 +182,10 @@ app.post("/api/day/next", (req: Request, res: Response) => {
   const newDay = state.getCurrentDay();
 
   console.log(`Simulation day advanced. Current Day is now ${newDay}`);
-  res
-    .status(200)
-    .json({ message: `Advanced simulation to day ${newDay}`, currentDay: newDay });
+  res.status(200).json({
+    message: `Advanced simulation to day ${newDay}`,
+    currentDay: newDay,
+  });
 });
 
 // --- Start Server ---
