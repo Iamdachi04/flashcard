@@ -178,20 +178,8 @@ app.get("/api/progress", (req: Request, res: Response) => {
   }
 });
 
-// POST /api/day/next - Advance the simulation day
-app.post("/api/day/next", (req: Request, res: Response) => {
-  state.incrementDay();
-  const newDay = state.getCurrentDay();
-
-  console.log(`Simulation day advanced. Current Day is now ${newDay}`);
-  res.status(200).json({
-    message: `Advanced simulation to day ${newDay}`,
-    currentDay: newDay,
-  });
-});
-
 // --- Start Server ---
 app.listen(PORT, () => {
   console.log(`Backend server running at http://localhost:${PORT}`);
-  console.log(`Initial Current Day: ${state.getCurrentDay()}`);
+  console.log(`Initial Current Day: 0`);
 });
