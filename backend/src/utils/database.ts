@@ -37,7 +37,7 @@ export function createTables(db: Database) {
  * @returns {Flashcard} The parsed flashcard
  * @throws {Error} If the provided row is null, or if compulsory fields are missing
  */
-export function parseFlashcard(row: FlashcardRow) {
+export function parseFlashcard(row: FlashcardRow): Flashcard {
   if (row == null) {
     throw new Error("Null fashcard cannot be parsed");
   }
