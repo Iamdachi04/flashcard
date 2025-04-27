@@ -1,5 +1,7 @@
+import Database from "better-sqlite3";
 import { Flashcard, BucketMap, AnswerDifficulty } from "./logic/flashcards";
-import { PracticeRecord } from "./types";
+import { PracticeRecord, PracticeRecordRow, FlashcardRow } from "./types";
+import * as utils from "./utils/database";
 
 // --- Initial Data ---
 // Define some sample flashcards
@@ -61,14 +63,12 @@ const initialCards: Flashcard[] = [
     ["chess", "alien"]
   ),
 
-
   new Flashcard(
     "the one , the only ...",
     "Magnus Carlsen",
     "the champion of champions in chess",
     ["chess", "GOAT"]
   ),
-
 
   new Flashcard(
     "the one who tried his best against Magnus",
@@ -77,14 +77,12 @@ const initialCards: Flashcard[] = [
     ["chess", "check"]
   ),
 
-
   new Flashcard(
     "the unckrowned king of chess",
     "Alierza firouzja",
     "the one with big glasses lol",
     ["chess", "prince"]
   ),
-
 
   new Flashcard(
     "the one who delivers chess lessons in the best way",
@@ -93,14 +91,12 @@ const initialCards: Flashcard[] = [
     ["chess", "prophet"]
   ),
 
-
   new Flashcard(
     "the most tricky player of chess",
     "Eric rosen",
     "he invented term 'oh no my queen'",
     ["chess", "trickyguy"]
   ),
-
 
   new Flashcard(
     "the one who's the biggest streamer youtuber",
@@ -113,7 +109,7 @@ const initialCards: Flashcard[] = [
     "they are sisters in chess",
     "botez sisters",
     "has a chess opening named after their surname",
-    ["chess", "gambit","botez"]
+    ["chess", "gambit", "botez"]
   ),
 
   new Flashcard(
@@ -127,71 +123,112 @@ const initialCards: Flashcard[] = [
     "the arrogant GOAT",
     "Bobby Fisher",
     "kind of a weird arrogant he was , but he delivered every single time",
-    ["chess", "ego","arrogant"]
+    ["chess", "ego", "arrogant"]
   ),
-
-
-
-
 ];
 
 // --- State Variables ---
 // Initialize buckets: Put all initial cards in bucket 0
-let currentBuckets: BucketMap = new Map();
-const initialCardSet = new Set(initialCards);
-currentBuckets.set(0, initialCardSet);
 
-// Initialize practice history
-let practiceHistory: PracticeRecord[] = [];
-
-// Current simulation day (can be incremented or managed)
-let currentDay: number = 0;
+/**
+ * Initializes the flashcards database with the initial set of cards.
+ *
+ * @param db Database instance, passed in by the caller.
+ */
+export function initializeState(db: Database.Database) {
+  initialCards.forEach((card) => {
+    utils.addFlashcard(db, card);
+  });
+}
 
 // --- State Accessors and Mutators ---
-export const getBuckets = (): BucketMap => currentBuckets;
 
-export const setBuckets = (newBuckets: BucketMap): void => {
-  currentBuckets = newBuckets;
+/**
+ * Retrieves a BucketMap containing sets of flashcards organized by their scheduled day.
+ *
+ * @param db - The database instance used to query flashcards.
+ * @returns A BucketMap where each key is a day number (starting from 0) and
+ *          the value is a set of flashcards scheduled for that day.
+ *
+ * The function queries the database to find the maximum scheduled day
+ * and iterates from day 0 to this maximum day, collecting flashcards
+ * for each day and organizing them into sets stored in the map.
+ */
+export const getBuckets = (db: Database.Database): BucketMap => {
+  // Get highest day flashcards
+  const maxDayRows = utils.getFlashcardsByCondition(
+    db,
+    "scheduledDay = ( SELECT MAX(scheduledDay) FROM flashcards)"
+  );
+  // Get max possible day
+  const maxDay = maxDayRows[0]?.scheduledDay ?? 0;
+  const bucketsMap: Map<number, Set<Flashcard>> = new Map();
+
+  // Create Bucketmap
+  for (let i = 0; i <= maxDay; i++) {
+    const dayRows = utils.getFlashcardsByCondition(db, `scheduledDay = ${i}`);
+    const bucketSet = new Set<Flashcard>(
+      dayRows.map((row) => utils.parseFlashcard(row))
+    );
+    bucketsMap.set(i, bucketSet);
+  }
+
+  return bucketsMap;
 };
 
-export const getHistory = (): PracticeRecord[] => practiceHistory;
-
-export const addHistoryRecord = (record: PracticeRecord): void => {
-  practiceHistory.push(record);
+/**
+ * Retrieves the practice history from the database.
+ *
+ * @param db - The database instance used to query practice records.
+ * @returns An array of PracticeRecord objects representing the practice history.
+ *
+ * The function queries all practice records from the database and maps each
+ * record row to a PracticeRecord object using the parsePracticeRecord utility.
+ */ export const getHistory = (db: Database.Database): PracticeRecord[] => {
+  const PracticeRecordRows: PracticeRecordRow[] =
+    utils.getPracticerecordsByCondition(db, "true");
+  return PracticeRecordRows.map((row) => utils.parsePracticeRecord(row, db));
 };
 
-export const getCurrentDay = (): number => currentDay;
+/**
+ * Adds a new practice record to the database.
+ *
+ * @param db - The database to query and write to.
+ * @param record - The practice record to add.
+ *
+ * The function first finds the Flashcard associated with the practice record
+ * by querying the database with the card's front and back sides. It then uses
+ * the found card's id to add the practice record to the database.
+ */
+export const addHistoryRecord = (
+  db: Database.Database,
+  record: PracticeRecord
+): void => {
+  const recordedCard = utils.getFlashcardsByCondition(
+    db,
+    `front = '${record.cardFront}' AND back = '${record.cardBack}'`
+  )[0];
 
-export const incrementDay = (): void => {
-  currentDay++;
+  utils.addPracticeRecord(db, record, recordedCard.id);
 };
 
-// Helper to find a card (assuming front/back are unique identifiers for now)
-export const findCard = (
+/**
+ * Finds a FlashcardRow in the database given its front and back sides.
+ *
+ * @param db The database to query.
+ * @param front The front side of the flashcard.
+ * @param back The back side of the flashcard.
+ * @returns The FlashcardRow matching the given front and back sides, or undefined if not found.
+ */
+export function findCardRow(
+  db: Database.Database,
   front: string,
   back: string
-): Flashcard | undefined => {
-  for (const [, bucketSet] of currentBuckets) {
-    for (const card of bucketSet) {
-      if (card.front === front && card.back === back) {
-        return card;
-      }
-    }
-  }
-  // Check initial set too, in case it hasn't been placed yet (edge case)
-  return initialCards.find(
-    (card) => card.front === front && card.back === back
-  );
-};
+): FlashcardRow {
+  const recordedCard: FlashcardRow = utils.getFlashcardsByCondition(
+    db,
+    `front = '${front}' AND back = '${back}'`
+  )[0];
 
-// Helper to find the bucket of a card
-export const findCardBucket = (cardToFind: Flashcard): number | undefined => {
-  for (const [bucketNum, bucketSet] of currentBuckets) {
-    if (bucketSet.has(cardToFind)) {
-      return bucketNum;
-    }
-  }
-  return undefined; // Should ideally always be found if state is consistent
-};
-
-console.log("Initial State Loaded:", currentBuckets);
+  return recordedCard;
+}
