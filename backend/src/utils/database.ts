@@ -31,9 +31,18 @@ export function createTables(db: Database) {
     `);
 }
 
-function parseFlashcard(row: FlashcardRow) {
+/**
+ * Parse a row from the flashcards table into a Flashcard object
+ * @param {FlashcardRow} row - The row to parse
+ * @returns {Flashcard} The parsed flashcard
+ * @throws {Error} If the provided row is null, or if compulsory fields are missing
+ */
+export function parseFlashcard(row: FlashcardRow) {
   if (row == null) {
     throw new Error("Null fashcard cannot be parsed");
+  }
+  if (row.front == null || row.back == null) {
+    throw new Error("Flashcard must have a front and back");
   }
   let tags: string[] = [];
   if (row.tags != null) {
