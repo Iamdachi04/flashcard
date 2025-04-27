@@ -5,6 +5,7 @@ import {
   createTables,
   getFlashcardsByCondition,
   getPracticerecordsByCondition,
+  addFlashcard,
 } from "../src/utils/database";
 import { Flashcard } from "../src/logic/flashcards";
 import { PracticeRecordRow, FlashcardRow } from "../src/types";
@@ -250,6 +251,62 @@ describe("getFlashcardsByCondition", () => {
     assert.throws(
       () => getPracticerecordsByCondition(db, "id_value > 'invalidValue'"),
       Error
+    );
+  });
+});
+
+/*
+ * Testing strategy for addFlashcard():
+ *
+ * Cover partitions:
+ *    Database unreachable
+ *    Database reachable:
+ *        Valid flashcard without hints
+ *        Valid flashcard without tags
+ *        Full valid flashcard
+ *        Duplicate flashcard
+
+ */
+describe("addFlashcard", () => {
+  let db: Database.Database;
+
+  beforeEach(function (done) {
+    setTimeout(() => {
+      db = new Database();
+      createTables(db);
+      done();
+    }, 100);
+  });
+
+  it("Covers valid flashcard without hints", () => {
+    let flashcard: Flashcard = new Flashcard("front1", "back1", undefined, [
+      "hint",
+    ]);
+    addFlashcard(db, flashcard);
+    assert.deepEqual(
+      parseFlashcard(getFlashcardsByCondition(db, "front = 'front1'")[0]),
+      flashcard
+    );
+  });
+
+  it("Covers valid flashcard without tags", () => {
+    let flashcard: Flashcard = new Flashcard("front1", "back1", "hint1", []);
+    addFlashcard(db, flashcard);
+    assert.deepEqual(
+      parseFlashcard(getFlashcardsByCondition(db, "front = 'front1'")[0]),
+      flashcard
+    );
+  });
+
+  it("Covers full valid flashcard", () => {
+    let flashcard: Flashcard = new Flashcard("front1", "back1", "hint1", [
+      "tag1",
+      "tag2",
+    ]);
+    addFlashcard(db, flashcard);
+    assert.deepEqual(
+      parseFlashcard(getFlashcardsByCondition(db, "front = 'front1'")[0]),
+      flashcard
     );
   });
 });
