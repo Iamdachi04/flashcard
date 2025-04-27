@@ -49,6 +49,6 @@ function parseFlashcard(row: FlashcardRow) {
   return new Flashcard(row.front, row.back, hint, tags);
 }
 
-export function get_flashcards(db: Database, cardId: number): Array<Flashcard> {
-  //TODO
-}
+// export function get_flashcards(db: Database, cardId: number): Array<Flashcard> {
+//   //TODO
+// }
