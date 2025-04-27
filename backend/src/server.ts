@@ -6,6 +6,7 @@ import * as state from "./state";
 import { UpdateRequest, ProgressStats, PracticeRecord } from "./types";
 import Database from "better-sqlite3";
 import * as utils from "./utils/database";
+import { parse } from "path";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,8 +27,25 @@ app.use(express.json());
 // GET /api/practice - Get cards to practice for the current day
 app.get("/api/practice", (req: Request, res: Response) => {
   try {
-    const currentDay = state.getCurrentDay();
-    const bucketsMap = state.getBuckets();
+    const currentDayString = req.query.day as string;
+    const currentDay = parseInt(currentDayString);
+    // Get highest day flashcards
+    const maxDayRows = utils.getFlashcardsByCondition(
+      db,
+      "scheduledDay = ( SELECT MAX(scheduledDay) FROM flashcards)"
+    );
+    // Get max possible day
+    const maxDay = maxDayRows[0]?.scheduledDay ?? 0;
+    const bucketsMap: Map<number, Set<Flashcard>> = new Map();
+
+    // Create Bucketmap
+    for (let i = 0; i <= maxDay; i++) {
+      const dayRows = utils.getFlashcardsByCondition(db, `scheduledDay = ${i}`);
+      const bucketSet = new Set<Flashcard>(
+        dayRows.map((row) => utils.parseFlashcard(row))
+      );
+      bucketsMap.set(i, bucketSet);
+    }
 
     // Convert Map to Array<Set> for the practice function
     const bucketSetsArray = logic.toBucketSets(bucketsMap);
