@@ -47,84 +47,84 @@ app.get("/api/practice", (req: Request, res: Response) => {
   }
 });
 
-// POST /api/update - Update a card's bucket after practice
-app.post("/api/update", (req: Request, res: Response) => {
-  /**
-   * TODO:
-   * Reimplement this function to accept batch updates instead of getting them one at a time
-   * Frontend will send batch updates. Backend must process them
-   * Update request will contain current day as req.query.day
-   */
-  try {
-    const updateData = req.body as UpdateRequest;
-    const cardFrontFromRequest = updateData.cardFront;
-    const cardBackFromRequest = updateData.cardBack;
-    const difficultyFromRequest = updateData.difficulty;
+// // POST /api/update - Update a card's bucket after practice
+// app.post("/api/update", (req: Request, res: Response) => {
+//   /**
+//    * TODO:
+//    * Reimplement this function to accept batch updates instead of getting them one at a time
+//    * Frontend will send batch updates. Backend must process them
+//    * Update request will contain current day as req.query.day
+//    */
+//   try {
+//     const updateData = req.body as UpdateRequest;
+//     const cardFrontFromRequest = updateData.cardFront;
+//     const cardBackFromRequest = updateData.cardBack;
+//     const difficultyFromRequest = updateData.difficulty;
 
-    // Validate difficulty
-    const validDifficulties = Object.values(AnswerDifficulty);
-    const difficultyIsValid = validDifficulties.includes(difficultyFromRequest);
+//     // Validate difficulty
+//     const validDifficulties = Object.values(AnswerDifficulty);
+//     const difficultyIsValid = validDifficulties.includes(difficultyFromRequest);
 
-    if (!difficultyIsValid) {
-      res.status(400).json({ message: "Invalid difficulty level provided" });
-      return;
-    }
+//     if (!difficultyIsValid) {
+//       res.status(400).json({ message: "Invalid difficulty level provided" });
+//       return;
+//     }
 
-    const targetCard = state.findCard(
-      cardFrontFromRequest,
-      cardBackFromRequest
-    );
-    if (!targetCard) {
-      res.status(404).json({ message: "Card not found" });
-      return;
-    }
+//     const targetCard = state.findCard(
+//       cardFrontFromRequest,
+//       cardBackFromRequest
+//     );
+//     if (!targetCard) {
+//       res.status(404).json({ message: "Card not found" });
+//       return;
+//     }
 
-    const currentBuckets = state.getBuckets();
-    const previousBucket = state.findCardBucket(targetCard);
+//     const currentBuckets = state.getBuckets();
+//     const previousBucket = state.findCardBucket(targetCard);
 
-    // Use update function to calculate the new bucket configuration
-    const updatedBuckets = logic.update(
-      currentBuckets,
-      targetCard,
-      difficultyFromRequest
-    );
+//     // Use update function to calculate the new bucket configuration
+//     const updatedBuckets = logic.update(
+//       currentBuckets,
+//       targetCard,
+//       difficultyFromRequest
+//     );
 
-    // Update the application state with the new buckets
-    state.setBuckets(updatedBuckets);
+//     // Update the application state with the new buckets
+//     state.setBuckets(updatedBuckets);
 
-    // Determine the card's new bucket after the state update
-    const newBucket = state.findCardBucket(targetCard);
+//     // Determine the card's new bucket after the state update
+//     const newBucket = state.findCardBucket(targetCard);
 
-    // Prepare data for history record
-    const cardFrontForHistory = targetCard.front;
-    const cardBackForHistory = targetCard.back;
-    const timestampForHistory = Date.now();
-    const difficultyForHistory = difficultyFromRequest;
-    const previousBucketForHistory = previousBucket ?? -1;
-    const newBucketForHistory = newBucket ?? -1;
+//     // Prepare data for history record
+//     const cardFrontForHistory = targetCard.front;
+//     const cardBackForHistory = targetCard.back;
+//     const timestampForHistory = Date.now();
+//     const difficultyForHistory = difficultyFromRequest;
+//     const previousBucketForHistory = previousBucket ?? -1;
+//     const newBucketForHistory = newBucket ?? -1;
 
-    // Create history record object
-    const historyRecord: PracticeRecord = {
-      cardFront: cardFrontForHistory,
-      cardBack: cardBackForHistory,
-      timestamp: timestampForHistory,
-      difficulty: difficultyForHistory,
-      previousBucket: previousBucketForHistory,
-      newBucket: newBucketForHistory,
-    };
+//     // Create history record object
+//     const historyRecord: PracticeRecord = {
+//       cardFront: cardFrontForHistory,
+//       cardBack: cardBackForHistory,
+//       timestamp: timestampForHistory,
+//       difficulty: difficultyForHistory,
+//       previousBucket: previousBucketForHistory,
+//       newBucket: newBucketForHistory,
+//     };
 
-    // Add to history
-    state.addHistoryRecord(historyRecord);
+//     // Add to history
+//     state.addHistoryRecord(historyRecord);
 
-    console.log(
-      `Updated card "${targetCard.front}" with difficulty "${AnswerDifficulty[difficultyFromRequest]}". Moved from bucket ${previousBucket} to ${newBucket}.`
-    );
-    res.status(200).json({ message: "Card updated successfully" });
-  } catch (error) {
-    console.error("Error updating card:", error);
-    res.status(500).json({ message: "Error updating card" });
-  }
-});
+//     console.log(
+//       `Updated card "${targetCard.front}" with difficulty "${AnswerDifficulty[difficultyFromRequest]}". Moved from bucket ${previousBucket} to ${newBucket}.`
+//     );
+//     res.status(200).json({ message: "Card updated successfully" });
+//   } catch (error) {
+//     console.error("Error updating card:", error);
+//     res.status(500).json({ message: "Error updating card" });
+//   }
+// });
 
 // GET /api/progress - Get learning progress statistics
 app.get("/api/progress", (req: Request, res: Response) => {
