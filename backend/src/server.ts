@@ -49,6 +49,12 @@ app.get("/api/practice", (req: Request, res: Response) => {
 
 // POST /api/update - Update a card's bucket after practice
 app.post("/api/update", (req: Request, res: Response) => {
+  /**
+   * TODO:
+   * Reimplement this function to accept batch updates instead of getting them one at a time
+   * Frontend will send batch updates. Backend must process them
+   * Update request will contain current day as req.query.day
+   */
   try {
     const updateData = req.body as UpdateRequest;
     const cardFrontFromRequest = updateData.cardFront;
@@ -123,8 +129,8 @@ app.post("/api/update", (req: Request, res: Response) => {
 // GET /api/progress - Get learning progress statistics
 app.get("/api/progress", (req: Request, res: Response) => {
   try {
-    const currentBuckets = state.getBuckets();
-    const completeHistory = state.getHistory();
+    const currentBuckets = state.getBuckets(db);
+    const completeHistory = state.getHistory(db);
 
     // Use computeProgress function
     const progressStats: ProgressStats = logic.computeProgress(
