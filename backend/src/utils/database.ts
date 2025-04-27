@@ -1,4 +1,4 @@
-import { Database } from "better-sqlite3";
+import Database from "better-sqlite3";
 import { FlashcardRow, PracticeRecordRow } from "../types";
 import { Flashcard } from "../logic/flashcards";
 
@@ -7,7 +7,7 @@ import { Flashcard } from "../logic/flashcards";
  * they do not already exist.
  * @param {Database} db - The database to create the tables in
  */
-export function createTables(db: Database) {
+export function createTables(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS flashcards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +67,7 @@ export function parseFlashcard(row: FlashcardRow): Flashcard {
  * @throws {Error} If the database is unreachable
  */
 export function getFlashcardsByCondition(
-  db: Database,
+  db: Database.Database,
   condition: string
 ): Array<FlashcardRow> {
   try {
@@ -88,7 +88,7 @@ export function getFlashcardsByCondition(
  * @throws {Error} If the database is unreachable
  */
 export function getPracticerecordsByCondition(
-  db: Database,
+  db: Database.Database,
   condition: string
 ): Array<PracticeRecordRow> {
   try {
@@ -99,4 +99,22 @@ export function getPracticerecordsByCondition(
   return db
     .prepare(`SELECT * FROM practicerecords WHERE ${condition}`)
     .all() as PracticeRecordRow[];
+}
+
+/**
+ * Adds a new flashcard to the database.
+ * @param {Database} db - The database to use
+ * @param {Flashcard} flashcard - The flashcard to add
+ * @throws {Error} If the database is unreachable
+ */
+export function addFlashcard(db: Database.Database, flashcard: Flashcard) {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  const tags = flashcard.tags.length > 0 ? flashcard.tags.join(",") : null;
+  db.prepare(
+    `INSERT INTO flashcards (front, back, hint, tags, scheduledDay) VALUES (?, ?, ?, ?, ?)`
+  ).run(flashcard.front, flashcard.back, flashcard.hint, tags, 0);
 }
