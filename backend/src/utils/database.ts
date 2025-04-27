@@ -1,6 +1,8 @@
 import Database from "better-sqlite3";
 import { FlashcardRow, PracticeRecordRow } from "../types";
 import { Flashcard } from "../logic/flashcards";
+import { PracticeRecord } from "../logic/practiceRecord";
+import { get } from "http";
 
 /**
  * Creates the flashcards and practicerecords tables in the given database if
@@ -27,7 +29,8 @@ export function createTables(db: Database.Database) {
         difficulty INTEGER  NOT NULL,
         oldday INTEGER  NOT NULL,
         newday INTEGER  NOT NULL,
-        FOREIGN KEY (id) REFERENCES flashcards(id)
+        FOREIGN KEY (id) REFERENCES flashcards(id),
+        UNIQUE (id, timestamp)
     );
     `);
 }
@@ -57,6 +60,52 @@ export function parseFlashcard(row: FlashcardRow): Flashcard {
     hint = row.hint;
   }
   return new Flashcard(row.front, row.back, hint, tags);
+}
+
+/**
+ * Parse a row from the practicerecords table into a PracticeRecord object
+ * @param {PracticeRecordRow} row - The row to parse
+ * @param {Database.Database} db - The database to query
+ * @returns {PracticeRecord} The parsed practice record
+ * @throws {Error} If the provided row is null, or if compulsory fields are missing,
+ *                 or if the corresponding flashcard does not exist
+ */
+export function parsePracticeRecord(
+  row: PracticeRecordRow,
+  db: Database.Database
+): PracticeRecord {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  if (row == null) {
+    throw new Error("Null practice record cannot be parsed");
+  }
+
+  let flashcardRow: FlashcardRow = {
+    id: 0,
+    front: "",
+    back: "",
+    hint: null,
+    tags: null,
+    scheduledDay: 0,
+  };
+  try {
+    flashcardRow = getFlashcardsByCondition(db, `id = ${row.id}`)[0];
+  } catch (error) {
+    throw new Error(
+      "Error retrieving flashcard for this record with id " + row.id
+    );
+  }
+  return new PracticeRecord(
+    flashcardRow.front,
+    flashcardRow.back,
+    row.timestamp,
+    row.difficulty,
+    row.oldday,
+    row.newday
+  );
 }
 
 /**
@@ -117,4 +166,71 @@ export function addFlashcard(db: Database.Database, flashcard: Flashcard) {
   db.prepare(
     `INSERT INTO flashcards (front, back, hint, tags, scheduledDay) VALUES (?, ?, ?, ?, ?)`
   ).run(flashcard.front, flashcard.back, flashcard.hint, tags, 0);
+}
+
+/**
+ * Adds a new practice record to the database.
+ * @param {Database} db - The database to use
+ * @param {PracticeRecord} practiceRecord - The practice record to add
+ * @param {number} flashcardID - The id of the flashcard this practice record is associated with
+ * @throws {Error} If the database is unreachable or if either the flashcard id or timestamp is invalid
+ */
+export function addPracticeRecord(
+  db: Database.Database,
+  practiceRecord: PracticeRecord,
+  flashcardID: number
+) {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  if (flashcardID < 1) {
+    throw new Error("Invalid flashcard id");
+  }
+  if (practiceRecord.timestamp < 0) {
+    throw new Error("Invalid timestamp");
+  }
+  db.prepare(
+    `INSERT INTO practicerecords (id, timestamp, difficulty, oldday, newday) VALUES (?, ?, ?, ?, ?)`
+  ).run(
+    flashcardID,
+    practiceRecord.timestamp,
+    practiceRecord.difficulty,
+    practiceRecord.previousBucket,
+    practiceRecord.newBucket
+  );
+}
+
+export function updateDay(db: Database.Database, id: number, day: number) {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  if (id < 1) {
+    throw new Error("Invalid flashcard id");
+  }
+  if (day < 0) {
+    throw new Error("Invalid day");
+  }
+  let flashcardRow: FlashcardRow = {
+    id: 0,
+    front: "",
+    back: "",
+    hint: "",
+    tags: "",
+    scheduledDay: 0,
+  };
+  // Retrieve flashcard
+  const flashcardRows = getFlashcardsByCondition(db, `id = ${id}`);
+
+  // If no flashcard is found, throw an error
+  if (flashcardRows.length === 0) {
+    throw new Error(`Flashcard with id ${id} does not exist`);
+  }
+  db.prepare(`UPDATE flashcards SET scheduledDay = ? WHERE id = ?`).run(
+    day,
+    id
+  );
 }

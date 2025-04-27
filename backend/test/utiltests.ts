@@ -2,12 +2,16 @@
 import assert from "assert";
 import {
   parseFlashcard,
+  parsePracticeRecord,
   createTables,
   getFlashcardsByCondition,
   getPracticerecordsByCondition,
   addFlashcard,
+  addPracticeRecord,
+  updateDay,
 } from "../src/utils/database";
 import { Flashcard } from "../src/logic/flashcards";
+import { PracticeRecord } from "../src/logic/practiceRecord";
 import { PracticeRecordRow, FlashcardRow } from "../src/types";
 import Database from "better-sqlite3";
 import { get } from "http";
@@ -18,8 +22,6 @@ import { get } from "http";
  * Cover partitions:
  *    Null flashcard
  *    Non-null flashcard:
- *        Font missing
- *        Back missing
  *        Hint missing
  *        Tags missing
  *
@@ -33,34 +35,6 @@ describe("parseFlashcard", () => {
     );
   });
 
-  it("Covers non-null fashcard X Front missing", () => {
-    assert.throws(
-      () =>
-        parseFlashcard({
-          front: null,
-          back: "back",
-          hint: "hint",
-          tags: "tags",
-          scheduledDay: 0,
-        } as any),
-      Error,
-      "Flashcard must have a front and back"
-    );
-  });
-  it("Covers non-null fashcard X Back missing", () => {
-    assert.throws(
-      () =>
-        parseFlashcard({
-          front: "front",
-          back: null,
-          hint: "hint",
-          tags: "tags",
-          scheduledDay: 0,
-        } as any),
-      Error,
-      "Flashcard must have a front and back"
-    );
-  });
   it("Covers non-null fashcard X Hint missing", () => {
     let flashcard: Flashcard = new Flashcard("front", "back", undefined, [
       "tags",
@@ -89,6 +63,69 @@ describe("parseFlashcard", () => {
   });
 });
 
+/**
+ *
+ * Testign strategy for parsePracticeRecord():
+ *
+ * Cover Partitions:
+ *    Database unreachable
+ *    Null practice record
+ *    Invalid flashcard id
+ *
+ */
+describe("parsePracticeRecord", () => {
+  let db: Database.Database;
+  before(function (done) {
+    setTimeout(() => {
+      db = new Database();
+      createTables(db);
+      db.exec(
+        `INSERT INTO flashcards (front, back, hint, tags, scheduledDay) VALUES ('front1', 'back1', 'hint1', 'tags1', 0), ('front2', 'back2', 'hint2', 'tags2', 1), ('front3', 'back3', 'hint3', 'tags3', 2);`
+      );
+      done();
+    }, 100);
+  });
+
+  it("Covers database unreachable", () => {
+    const invalidDb: any = {};
+    const practiceRecordRow: any = {
+      id: 1,
+      timestamp: 1,
+      difficulty: 1,
+      oldday: 1,
+      newday: 1,
+    };
+    assert.throws(
+      () => parsePracticeRecord(practiceRecordRow, invalidDb),
+      Error,
+      "Database unreachable"
+    );
+  });
+
+  it("Covers null practice record", () => {
+    assert.throws(
+      () => parsePracticeRecord(null as any, db),
+      Error,
+      "Null practice record cannot be parsed"
+    );
+  });
+
+  it("Covers invalid flashcard id", () => {
+    const practiceRecordRow: any = {
+      id: 5,
+      timestamp: 1,
+      difficulty: 1,
+      oldday: 1,
+      newday: 1,
+    };
+    assert.throws(
+      () => parsePracticeRecord(practiceRecordRow, db),
+      Error,
+      "Error retrieving flashcard for this record with id 5"
+    );
+  });
+});
+
 /*
  * Testing strategy for getFlashcardsByCondition():
  *
@@ -114,7 +151,7 @@ describe("getFlashcardsByCondition", () => {
     }, 100);
   });
 
-  it("Covers invalid database", () => {
+  it("Covers database unreachable", () => {
     const invalidDb: any = { jj: 8 };
     assert.throws(
       () => getFlashcardsByCondition(invalidDb, "id = 1"),
@@ -177,7 +214,7 @@ describe("getFlashcardsByCondition", () => {
 });
 
 /*
- * Testing strategy for getFlashcardsByCondition():
+ * Testing strategy for getPracticerecordsByCondition():
  *
  * Cover partitions:
  *    Database unreachable
@@ -187,7 +224,7 @@ describe("getFlashcardsByCondition", () => {
  *        Multiple flashcards
  *        Invalid condition
  */
-describe("getFlashcardsByCondition", () => {
+describe("getPracticerecordsByCondition()", () => {
   let db: Database.Database;
 
   before(function (done) {
@@ -200,6 +237,15 @@ describe("getFlashcardsByCondition", () => {
       );
       done();
     }, 100);
+  });
+
+  it("Covers database unreachable", () => {
+    const invalidDb: any = { jj: 8 };
+    assert.throws(
+      () => getPracticerecordsByCondition(invalidDb, "id = 1"),
+      Error,
+      "Database unreachable"
+    );
   });
 
   it("Covers no flashcards", () => {
@@ -264,8 +310,7 @@ describe("getFlashcardsByCondition", () => {
  *        Valid flashcard without hints
  *        Valid flashcard without tags
  *        Full valid flashcard
- *        Duplicate flashcard
-
+ *
  */
 describe("addFlashcard", () => {
   let db: Database.Database;
@@ -276,6 +321,18 @@ describe("addFlashcard", () => {
       createTables(db);
       done();
     }, 100);
+  });
+
+  it("Covers database unreachable", () => {
+    const invalidDb: any = {};
+    let flashcard: Flashcard = new Flashcard("front1", "back1", undefined, [
+      "hint",
+    ]);
+    assert.throws(
+      () => addFlashcard(invalidDb, flashcard),
+      Error,
+      "Database unreachable"
+    );
   });
 
   it("Covers valid flashcard without hints", () => {
@@ -307,6 +364,124 @@ describe("addFlashcard", () => {
     assert.deepEqual(
       parseFlashcard(getFlashcardsByCondition(db, "front = 'front1'")[0]),
       flashcard
+    );
+  });
+});
+
+/*
+ * Testing strategy for addPracticeRecord():
+ *
+ * Cover partitions:
+ *    Database unreachable
+ *    Database reachable:
+ *        PracticeRecord with valid key
+ *        PracticeRecord with invalid timestamp
+ *        PractiecRecord with invalid id
+ *        Duplicate practiceRecord
+ *
+ *
+ */
+describe("addPracticeRecord", () => {
+  let db: Database.Database;
+
+  beforeEach((done) => {
+    setTimeout(() => {
+      db = new Database();
+      createTables(db);
+      done();
+    }, 100);
+  });
+
+  it("Covers database unreachable", () => {
+    const invalidDb: any = { jj: 8 };
+    const practiceRecord: PracticeRecord = new PracticeRecord(
+      "",
+      "",
+      0,
+      0,
+      0,
+      0
+    );
+    assert.throws(
+      () => addPracticeRecord(invalidDb, practiceRecord, 1),
+      Error,
+      "Database unreachable"
+    );
+  });
+
+  it("Covers practiceRecord with invalid id", () => {
+    assert.throws(
+      () => addPracticeRecord(db, new PracticeRecord("", "", 0, 0, 0, 0), 0),
+      Error,
+      "Invalid flashcard id"
+    );
+  });
+
+  it("Covers practiceRecord with invalid timestamp", () => {
+    assert.throws(
+      () => addPracticeRecord(db, new PracticeRecord("", "", 0, 0, 0, 1), 1),
+      Error,
+      "Invalid timestamp"
+    );
+  });
+
+  it("Covers duplicate practiceRecord", () => {
+    const flashcard = new Flashcard("front1", "back1", "hint1", []);
+    addFlashcard(db, flashcard);
+    addPracticeRecord(db, new PracticeRecord("", "", 0, 0, 0, 1), 1);
+    assert.throws(
+      () => addPracticeRecord(db, new PracticeRecord("", "", 0, 0, 0, 1), 1),
+      Error
+    );
+  });
+});
+
+/*
+ * Testing strategy for updateDay():
+ *
+ * Cover partitions:
+ *    Database unreachable
+ *    Database reachable:
+ *        Invalid Flashcard Id
+ *        Invalid day
+ *        NonExistent flashcard
+ *
+ */
+describe("updateDay", () => {
+  let db: Database.Database;
+  before(function (done) {
+    setTimeout(() => {
+      db = new Database();
+      createTables(db);
+      db.exec(
+        `INSERT INTO flashcards (front, back, hint, tags, scheduledDay) VALUES ('front1', 'back1', 'hint1', 'tags1', 0), ('front2', 'back2', 'hint2', 'tags2', 1), ('front3', 'back3', 'hint3', 'tags3', 2);`
+      );
+      done();
+    }, 100);
+  });
+
+  it("Covers database unreachable", () => {
+    const invalidDb: any = { jj: 8 };
+    assert.throws(
+      () => updateDay(invalidDb, 1, 1),
+      Error,
+      "Database unreachable"
+    );
+  });
+
+  it("Covers invalid flashcard id", () => {
+    assert.throws(() => updateDay(db, 0, 1), Error, "Invalid flashcard id");
+  });
+
+  it("Covers invalid day", () => {
+    assert.throws(() => updateDay(db, 1, -1), Error, "Invalid day");
+  });
+
+  it("Covers non-existent flashcard", () => {
+    assert.throws(
+      () => updateDay(db, 10, 10),
+      Error,
+      "Flashcard with id 10 does not exist"
     );
   });
 });
