@@ -1,6 +1,7 @@
 import { Database } from "better-sqlite3";
 import { FlashcardRow, PracticeRecordRow } from "../types";
 import { Flashcard } from "../logic/flashcards";
+
 /**
  * Creates the flashcards and practicerecords tables in the given database if
  * they do not already exist.
@@ -26,7 +27,7 @@ export function createTables(db: Database) {
         difficulty INTEGER  NOT NULL,
         oldday INTEGER  NOT NULL,
         newday INTEGER  NOT NULL,
-        FOREIGN KEY (cardId) REFERENCES flashcards(id)
+        FOREIGN KEY (id) REFERENCES flashcards(id)
     );
     `);
 }
@@ -58,6 +59,44 @@ export function parseFlashcard(row: FlashcardRow): Flashcard {
   return new Flashcard(row.front, row.back, hint, tags);
 }
 
-// export function get_flashcards(db: Database, cardId: number): Array<Flashcard> {
-//   //TODO
-// }
+/**
+ * Retrieves an array of flashcards from the database that match the given condition.
+ * @param {Database} db - The database to query
+ * @param {string} condition - The condition to filter flashcards by
+ * @returns {Array<FlashcardRow>} The array of matching flashcards
+ * @throws {Error} If the database is unreachable
+ */
+export function getFlashcardsByCondition(
+  db: Database,
+  condition: string
+): Array<FlashcardRow> {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  return db
+    .prepare(`SELECT * FROM flashcards WHERE ${condition}`)
+    .all() as FlashcardRow[];
+}
+
+/**
+ * Retrieves an array of practice records from the database that match the given condition.
+ * @param {Database} db - The database to query
+ * @param {string} condition - The condition to filter practice records by
+ * @returns {Array<PracticeRecordRow>} The array of matching practice records
+ * @throws {Error} If the database is unreachable
+ */
+export function getPracticerecordsByCondition(
+  db: Database,
+  condition: string
+): Array<PracticeRecordRow> {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  return db
+    .prepare(`SELECT * FROM practicerecords WHERE ${condition}`)
+    .all() as PracticeRecordRow[];
+}
