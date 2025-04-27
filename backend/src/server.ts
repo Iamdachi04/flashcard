@@ -12,11 +12,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- Database ---
-
 const db = new Database(":memory:");
 
-// Execute a query to create the tables
+// Execute queries to create the tables and populate them
 utils.createTables(db);
+state.initializeState(db);
 
 // --- Middleware ---
 app.use(cors());
@@ -29,23 +29,7 @@ app.get("/api/practice", (req: Request, res: Response) => {
   try {
     const currentDayString = req.query.day as string;
     const currentDay = parseInt(currentDayString);
-    // Get highest day flashcards
-    const maxDayRows = utils.getFlashcardsByCondition(
-      db,
-      "scheduledDay = ( SELECT MAX(scheduledDay) FROM flashcards)"
-    );
-    // Get max possible day
-    const maxDay = maxDayRows[0]?.scheduledDay ?? 0;
-    const bucketsMap: Map<number, Set<Flashcard>> = new Map();
-
-    // Create Bucketmap
-    for (let i = 0; i <= maxDay; i++) {
-      const dayRows = utils.getFlashcardsByCondition(db, `scheduledDay = ${i}`);
-      const bucketSet = new Set<Flashcard>(
-        dayRows.map((row) => utils.parseFlashcard(row))
-      );
-      bucketsMap.set(i, bucketSet);
-    }
+    const bucketsMap = state.getBuckets(db);
 
     // Convert Map to Array<Set> for the practice function
     const bucketSetsArray = logic.toBucketSets(bucketsMap);
