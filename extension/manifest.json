@@ -3,7 +3,7 @@
     "name": "Flashcard Adder",
     "version": "0.1",
     "description": "Add selected text as flashcards",
-    "permissions": ["contextMenus", "activeTab", "storage"],
+    "permissions": ["contextMenus", "activeTab", "storage","scripting"],
     "background": {
       "service_worker": "background.js"
     },
