@@ -55,7 +55,9 @@ describe("parseFlashcard", () => {
     );
   });
   it("Covers non-null fashcard X Hint missing", () => {
-    let flashcard: Flashcard = new Flashcard("front", "back", undefined, []);
+    let flashcard: Flashcard = new Flashcard("front", "back", undefined, [
+      "tags",
+    ]);
     let row: FlashcardRow = {
       id: 0,
       front: "front",
