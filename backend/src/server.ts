@@ -23,7 +23,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- API Routes ---
-
 // GET /api/practice - Get cards to practice for the current day
 app.get("/api/practice", (req: Request, res: Response) => {
   try {
@@ -118,44 +117,6 @@ app.post("/api/update", (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error updating card:", error);
     res.status(500).json({ message: "Error updating card" });
-  }
-});
-
-// GET /api/hint - Get a hint for a card
-app.get("/api/hint", (req: Request, res: Response) => {
-  try {
-    const cardFrontQuery = req.query.cardFront;
-    const cardBackQuery = req.query.cardBack;
-
-    // Validate query parameters
-    const cardFrontIsValid = typeof cardFrontQuery === "string";
-    const cardBackIsValid = typeof cardBackQuery === "string";
-
-    if (!cardFrontIsValid || !cardBackIsValid) {
-      res.status(400).json({
-        message:
-          "Both 'cardFront' and 'cardBack' query parameters are required and must be strings.",
-      });
-      return;
-    }
-
-    const cardFront = cardFrontQuery as string;
-    const cardBack = cardBackQuery as string;
-
-    const targetCard = state.findCard(cardFront, cardBack);
-    if (!targetCard) {
-      res.status(404).json({ message: "Card not found" });
-      return;
-    }
-
-    // Use getHint function
-    const hintText = logic.getHint(targetCard);
-
-    console.log(`Hint requested for card "${targetCard.front}".`);
-    res.json({ hint: hintText });
-  } catch (error) {
-    console.error("Error getting hint:", error);
-    res.status(500).json({ message: "Error getting hint" });
   }
 });
 
