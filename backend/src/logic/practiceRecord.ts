@@ -1,4 +1,4 @@
-export class PracticeRecord implements PracticeRecord {
+export class PracticeRecord {
   /**
    * Constructs a new PracticeRecord instance representing a flashcard practice event.
    *
