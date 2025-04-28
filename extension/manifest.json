@@ -4,6 +4,9 @@
     "version": "0.1",
     "description": "Add selected text as flashcards",
     "permissions": ["contextMenus", "activeTab", "storage","scripting"],
+    "action": { 
+    "default_popup": "popup.html" 
+  },
     "background": {
       "service_worker": "background.js"
     },
