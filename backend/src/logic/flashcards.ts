@@ -1,10 +1,13 @@
-export class Flashcard {
+export class Flashcard implements Flashcard {
   constructor(
     readonly front: string,
     readonly back: string,
     readonly hint?: string,
-    readonly tags: ReadonlyArray<string> = []
+    private readonly tags: ReadonlyArray<string> = []
   ) {}
+  getTags(): ReadonlyArray<string> {
+    return [...this.tags];
+  }
 }
 
 export enum AnswerDifficulty {
