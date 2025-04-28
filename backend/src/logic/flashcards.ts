@@ -1,6 +1,13 @@
 import { assert } from "console";
 
 export class Flashcard implements Flashcard {
+  /**
+   * Creates a new Flashcard.
+   * @param front - the front of the flashcard, which is the question.
+   * @param back - the back of the flashcard, which is the answer.
+   * @param hint - the hint associated with the flashcard, which is a hint for the answer. If not provided, defaults to undefined.
+   * @param tags - the tags associated with the flashcard, which are used for grouping. If not provided, defaults to an empty array.
+   */
   constructor(
     readonly front: string,
     readonly back: string,
