@@ -16,7 +16,7 @@ const db = new Database(":memory:");
 
 // Execute a query to create the tables
 utils.createTables(db);
-s;
+
 // --- Middleware ---
 app.use(cors());
 app.use(express.json());
