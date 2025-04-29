@@ -14,7 +14,7 @@ export const updatePractice = (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Card ID is required' });
     }
 
-    // Difficulty should be between 0-5 (0-3 means harder, 4-5 means easier)
+    // Difficulty should be between 0-5
     if (difficulty === undefined || difficulty < 0 || difficulty > 5) {
       return res.status(400).json({ error: 'Difficulty must be a number between 0 and 5' });
     }
@@ -30,19 +30,30 @@ export const updatePractice = (req: Request, res: Response) => {
 
     const oldDay = card.scheduledDay;
 
-    // Calculate the new scheduledDay based on how difficult the user found the card
-    // If difficulty is 0-3, we'll increase the interval (make it show up less often)
-    // If difficulty is 4-5, we'll reset to 0 (make it show up more frequently)
-    const newDay = difficulty <= 3 ? oldDay + 1 : 0;
+    // Calculate the new scheduledDay based on the provided difficulty
+    // According to requirements:
+    // - Difficulty 0-2: decrease or reset to 0
+    // - Difficulty 3-5: increase the scheduling level
+    let newDay;
+    
+    if (difficulty <= 2) {
+      // For low difficulty ratings (0-2), decrease the scheduling level
+      // 0: reset to 0, 1: decrease by 2, 2: decrease by 1
+      newDay = Math.max(0, oldDay - (3 - difficulty));
+    } else {
+      // For higher difficulty ratings (3-5), increase the scheduling level
+      // 3: increase by 1, 4: increase by 2, 5: increase by 3
+      newDay = oldDay + (difficulty - 2);
+    }
 
     // Current timestamp for when this practice happened
     const timestamp = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
 
     // We'll use a transaction to make sure all database operations succeed or fail together
     const transaction = db.transaction(() => {
-      // Add a record of this practice session to the practice_records table
+      // Add a record of this practice session to the practicerecords table
       const insertRecordStmt = db.prepare(
-        'INSERT INTO practicerecords (cardId, timestamp, difficulty, oldday, newday) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO practicerecords (id, timestamp, difficulty, oldday, newday) VALUES (?, ?, ?, ?, ?)'
       );
       
       insertRecordStmt.run(cardId, timestamp, difficulty, oldDay, newDay);
