@@ -162,7 +162,8 @@ export function addFlashcard(db: Database.Database, flashcard: Flashcard) {
   } catch (err) {
     throw new Error("Database unreachable");
   }
-  const tags = flashcard.tags.length > 0 ? flashcard.tags.join(",") : null;
+  const tags =
+    flashcard.getTags().length > 0 ? flashcard.getTags().join(",") : null;
   db.prepare(
     `INSERT INTO flashcards (front, back, hint, tags, scheduledDay) VALUES (?, ?, ?, ?, ?)`
   ).run(flashcard.front, flashcard.back, flashcard.hint, tags, 0);
