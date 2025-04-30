@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { Flashcard, BucketMap, AnswerDifficulty } from "./logic/flashcards";
-import { PracticeRecord, PracticeRecordRow, FlashcardRow } from "./types";
+import { PracticeRecord } from "./logic/practiceRecord";
+import { PracticeRecordRow, FlashcardRow } from "./types";
 import * as utils from "./utils/database";
 
 // --- State ---
