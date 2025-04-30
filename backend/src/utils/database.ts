@@ -109,6 +109,24 @@ export function parsePracticeRecord(
 }
 
 /**
+ * Gets the current scheduled day for a flashcard
+ * @param {Database} db - The database to query
+ * @param {string|number} cardId - The ID of the card to check
+ * @returns {number|undefined} The scheduled day value or undefined if card not found
+ * @throws {Error} If the database is unreachable
+ */
+export function getCardScheduledDay(db: Database.Database, cardId: string | number): number | undefined {
+  try {
+    db.prepare("SELECT 1").get();
+  } catch (err) {
+    throw new Error("Database unreachable");
+  }
+  
+  const result = db.prepare('SELECT scheduledDay FROM flashcards WHERE id = ?').get(cardId);
+  return result ? (result as { scheduledDay: number }).scheduledDay : undefined;
+}
+
+/**
  * Retrieves an array of flashcards from the database that match the given condition.
  * @param {Database} db - The database to query
  * @param {string} condition - The condition to filter flashcards by
@@ -203,35 +221,40 @@ export function addPracticeRecord(
   );
 }
 
-export function updateDay(db: Database.Database, id: number, day: number) {
+/**
+ * Updates the scheduled day for a flashcard
+ * @param {Database} db - The database to use
+ * @param {number|string} id - The id of the flashcard to update
+ * @param {number} day - The new scheduled day value
+ * @throws {Error} If the database is unreachable, flashcard id is invalid, day is invalid, or flashcard doesn't exist
+ */
+export function updateDay(db: Database.Database, id: number | string, day: number) {
   try {
     db.prepare("SELECT 1").get();
   } catch (err) {
     throw new Error("Database unreachable");
   }
-  if (id < 1) {
+  
+  // Convert id to number if it's a string
+  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+  
+  if (isNaN(numericId) || numericId < 1) {
     throw new Error("Invalid flashcard id");
   }
   if (day < 0) {
     throw new Error("Invalid day");
   }
-  let flashcardRow: FlashcardRow = {
-    id: 0,
-    front: "",
-    back: "",
-    hint: "",
-    tags: "",
-    scheduledDay: 0,
-  };
-  // Retrieve flashcard
-  const flashcardRows = getFlashcardsByCondition(db, `id = ${id}`);
+  
+  // Retrieve flashcard to check if it exists
+  const flashcardRows = getFlashcardsByCondition(db, `id = ${numericId}`);
 
   // If no flashcard is found, throw an error
   if (flashcardRows.length === 0) {
-    throw new Error(`Flashcard with id ${id} does not exist`);
+    throw new Error(`Flashcard with id ${numericId} does not exist`);
   }
+  
   db.prepare(`UPDATE flashcards SET scheduledDay = ? WHERE id = ?`).run(
     day,
-    id
+    numericId
   );
 }
