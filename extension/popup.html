@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Add Flashcard</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+    <div>
+        <label for="frontText">Front:</label>
+        <textarea id="frontText" placeholder="Enter the front of the card"></textarea>
+    </div>
+
+    <div>
+        <label for="backText">Back:</label>
+        <textarea id="backText" placeholder="Enter the back of the card"></textarea>
+    </div>
+
+    <!-- Container for the "Hint" input field -->
+    <div>
+        <label for="hintText">Hint (Optional):</label>
+        <input type="text" id="hintText" placeholder="Enter a hint">
+    </div>
+
+    <!-- Container for the "Tags" input field -->
+    <div>
+        <label for="tagsText">Tags (Comma-separated, Optional):</label>
+        <input type="text" id="tagsText" placeholder="e.g., noun, german, important">
+    </div>
+    <div>
+        <button id="saveButton">Save Flashcard</button>
+    </div>
+
+<!-- I also made popup.html to be added in manifest.json as the default popup , so that whenever I will click the extension itself it will pop up the popup.html
+ I could not write this comment in manifest.json , cause it was arguing with me , so I had to write it in here lol
+-->
+</body>
+<script src="popup.js"></script>
+</html>
