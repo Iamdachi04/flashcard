@@ -36,3 +36,8 @@ export interface ProgressStats {
   successRate: number; // Percentage
   cardsByBucket: Record<number, number>;
 }
+
+// Optional: response from POST /advanceDay
+export interface AdvanceDayResponse {
+  currentDay: number;
+}
