@@ -1,8 +1,17 @@
-import { Flashcard, AnswerDifficulty, BucketMap } from "./flashcards";
-import { PracticeRecord, ProgressStats } from "../types";
+import {
+  PracticeRecord,
+  ProgressStats,
+  Flashcard,
+  AnswerDifficulty,
+  BucketMap,
+} from "../types";
 
 /**
- * Converts a BucketMap into an array of Sets, where the index is the bucket number
+ * Converts a BucketMap to an Array of Sets of Flashcards where
+ * each Set represents all the flashcards in a bucket of the same number.
+ * The array length is one more than the highest bucket number in the input.
+ * @param buckets The BucketMap to convert
+ * @returns An array of Sets of flashcards where each Set represents a bucket
  */
 export function toBucketSets(buckets: BucketMap): Array<Set<Flashcard>> {
   const result: Array<Set<Flashcard>> = [];
@@ -24,8 +33,14 @@ export function toBucketSets(buckets: BucketMap): Array<Set<Flashcard>> {
 }
 
 /**
- * Determines card placement
- * based on the Leitner system intervals.
+ * Given an array of sets of flashcards, each set representing a bucket of cards of the same number,
+ * and a day number, returns a set of flashcards to practice for that day.
+ * The algorithm is as follows: for each card in bucket 0, add it to the practice set.
+ * Then, for each bucket number n, if day % 2^n is 0, add all the cards in that bucket to the practice set.
+ * The result is a set of all the flashcards that should be practiced on the given day.
+ * @param buckets The array of sets of flashcards, each set representing a bucket of cards of the same number.
+ * @param day The day number to select practice cards for.
+ * @returns A set of flashcards to practice for the given day.
  */
 export function practice(
   buckets: Array<Set<Flashcard>>,
@@ -60,8 +75,14 @@ export function practice(
 }
 
 /**
- * Updates the bucket of a specific flashcard based on the provided answer difficulty.
- * Returns a new BucketMap reflecting the changes.
+ * Updates the card's bucket based on the answer difficulty.
+ * If the card was previously in a bucket, it is removed from that bucket.
+ * If the card was not previously in a bucket, it is added to the correct bucket.
+ * The result is a new BucketMap with the card's updated bucket.
+ * @param buckets The buckets to update
+ * @param card The card to update
+ * @param difficulty The difficulty of the user's answer
+ * @returns The updated buckets
  */
 export function update(
   buckets: BucketMap,
@@ -94,17 +115,16 @@ export function update(
     const currentSet = newBuckets.get(currentBucket);
     // If the set exists in the new map (which it should if copied correctly)
     if (currentSet) {
-       // Remove the card from its previous bucket in the new map
+      // Remove the card from its previous bucket in the new map
       currentSet.delete(card);
     }
   } else {
-      // If the card was not found in any bucket (likely a new card being added)
-      // Ensure bucket 0 exists in the new map to potentially add it there
-      if (!newBuckets.has(0)) {
-          newBuckets.set(0, new Set<Flashcard>());
-      }
+    // If the card was not found in any bucket (likely a new card being added)
+    // Ensure bucket 0 exists in the new map to potentially add it there
+    if (!newBuckets.has(0)) {
+      newBuckets.set(0, new Set<Flashcard>());
+    }
   }
-
 
   // Determine the target bucket number based on the answer difficulty and current bucket
   let newBucket: number;
@@ -115,7 +135,8 @@ export function update(
     // If answered hard, the card stays in its current bucket
     // If the card was new (currentBucket === -1), it stays in bucket 0
     newBucket = currentBucket === -1 ? 0 : currentBucket;
-  } else { // AnswerDifficulty.Easy
+  } else {
+    // AnswerDifficulty.Easy
     // If answered easy, the card moves to the next bucket
     // If the card was new, it starts at bucket 0 then moves to bucket 1
     const effectiveCurrentBucket = currentBucket === -1 ? 0 : currentBucket;
@@ -139,8 +160,13 @@ export function update(
 }
 
 /**
- * Retrieves a hint for a flashcard if available.
+ * Retrieves the hint for a given flashcard.
+ * If the flashcard has a hint, it returns the hint string.
+ * Otherwise, it returns a default message indicating no hint is available.
+ * @param card - The flashcard object containing the hint property.
+ * @returns The hint string if available, otherwise a default message.
  */
+
 export function getHint(card: Flashcard): string {
   // Check if the card object has a truthy 'hint' property
   if (card.hint) {
@@ -152,9 +178,14 @@ export function getHint(card: Flashcard): string {
 }
 
 /**
- * Computes learning progress statistics based on the current bucket distribution
- * and the historical practice records.
+ * Computes the learning progress statistics based on the current state of buckets and practice history.
+ *
+ * @param buckets - A map where each key is a bucket number and the value is a set of flashcards in that bucket.
+ * @param history - An array of practice records detailing past interactions with flashcards.
+ * @returns An object containing overall statistics including total number of cards, cards by bucket,
+ *          success rate of answers, average number of moves per card, and total number of practice events.
  */
+
 export function computeProgress(
   buckets: BucketMap,
   history: PracticeRecord[]
@@ -175,10 +206,9 @@ export function computeProgress(
   let maxBucketNumber = 0;
   const bucketNumbers = Object.keys(cardsByBucket);
   if (bucketNumbers.length > 0) {
-      const numericBucketNumbers = bucketNumbers.map(key => Number(key));
-      maxBucketNumber = Math.max(...numericBucketNumbers);
+    const numericBucketNumbers = bucketNumbers.map((key) => Number(key));
+    maxBucketNumber = Math.max(...numericBucketNumbers);
   }
-
 
   // Ensure the cardsByBucket object includes all bucket numbers from 0 up to the max,
   // initializing counts to 0 if a bucket was not present or empty in the map.
@@ -196,7 +226,9 @@ export function computeProgress(
   // Count correct answers (Easy or Hard difficulty) from history
   for (const record of history) {
     const difficulty = record.difficulty;
-    const isCorrect = difficulty === AnswerDifficulty.Easy || difficulty === AnswerDifficulty.Hard;
+    const isCorrect =
+      difficulty === AnswerDifficulty.Easy ||
+      difficulty === AnswerDifficulty.Hard;
     if (isCorrect) {
       correctAnswers++;
     }
@@ -227,7 +259,7 @@ export function computeProgress(
   let totalMovesSum = 0;
   const movesCounts = Object.values(cardMoves);
   for (const count of movesCounts) {
-      totalMovesSum += count;
+    totalMovesSum += count;
   }
 
   // Get the number of unique cards present in the history
@@ -236,9 +268,8 @@ export function computeProgress(
   // Calculate the average moves per unique card
   let averageMovesPerCard = 0;
   if (numUniqueCardsInHistory > 0) {
-      averageMovesPerCard = totalMovesSum / numUniqueCardsInHistory;
+    averageMovesPerCard = totalMovesSum / numUniqueCardsInHistory;
   }
-
 
   // Return the calculated statistics
   return {

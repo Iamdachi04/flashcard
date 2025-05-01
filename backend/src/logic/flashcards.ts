@@ -1,6 +1,6 @@
-import { assert } from "console";
+import { strict as assert } from "assert";
 
-export class Flashcard implements Flashcard {
+export class Flashcard {
   /**
    * Creates a new Flashcard.
    * @param front - the front of the flashcard, which is the question.

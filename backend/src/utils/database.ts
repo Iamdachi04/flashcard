@@ -115,14 +115,19 @@ export function parsePracticeRecord(
  * @returns {number|undefined} The scheduled day value or undefined if card not found
  * @throws {Error} If the database is unreachable
  */
-export function getCardScheduledDay(db: Database.Database, cardId: string | number): number | undefined {
+export function getCardScheduledDay(
+  db: Database.Database,
+  cardId: string | number
+): number | undefined {
   try {
     db.prepare("SELECT 1").get();
   } catch (err) {
     throw new Error("Database unreachable");
   }
-  
-  const result = db.prepare('SELECT scheduledDay FROM flashcards WHERE id = ?').get(cardId);
+
+  const result = db
+    .prepare("SELECT scheduledDay FROM flashcards WHERE id = ?")
+    .get(cardId);
   return result ? (result as { scheduledDay: number }).scheduledDay : undefined;
 }
 
@@ -228,23 +233,27 @@ export function addPracticeRecord(
  * @param {number} day - The new scheduled day value
  * @throws {Error} If the database is unreachable, flashcard id is invalid, day is invalid, or flashcard doesn't exist
  */
-export function updateDay(db: Database.Database, id: number | string, day: number) {
+export function updateDay(
+  db: Database.Database,
+  id: number | string,
+  day: number
+) {
   try {
     db.prepare("SELECT 1").get();
   } catch (err) {
     throw new Error("Database unreachable");
   }
-  
+
   // Convert id to number if it's a string
-  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-  
+  const numericId = typeof id === "string" ? parseInt(id, 10) : id;
+
   if (isNaN(numericId) || numericId < 1) {
     throw new Error("Invalid flashcard id");
   }
   if (day < 0) {
     throw new Error("Invalid day");
   }
-  
+
   // Retrieve flashcard to check if it exists
   const flashcardRows = getFlashcardsByCondition(db, `id = ${numericId}`);
 
@@ -252,7 +261,7 @@ export function updateDay(db: Database.Database, id: number | string, day: numbe
   if (flashcardRows.length === 0) {
     throw new Error(`Flashcard with id ${numericId} does not exist`);
   }
-  
+
   db.prepare(`UPDATE flashcards SET scheduledDay = ? WHERE id = ?`).run(
     day,
     numericId
