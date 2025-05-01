@@ -15,8 +15,6 @@ Database is managed through the use of utility functions located in the utils di
 
 Functions is backend are commented and documented.
 
-/// Description of other work here ///
-
 - Collaboration:
   Feature impelementations are distributed among different branches - merged into main after pull request is confirmed by the reviewer. Commits are frequent, complete with meaningful and relevant summaries. So are the pull requests.
 
