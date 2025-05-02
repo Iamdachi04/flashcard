@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Flashcard, AnswerDifficulty, PracticeSession } from '../types';
 import { fetchPracticeCards, submitAnswer, advanceDay } from '../services/api';
 import FlashcardDisplay from './FlashcardDisplay';
 
-const LOCAL_STORAGE_DAY_KEY = 'currentPracticeDay'; //  Persisted day key
+const LOCAL_STORAGE_DAY_KEY = 'currentPracticeDay';
 
 const PracticeView: React.FC = () => {
   const [practiceCards, setPracticeCards] = useState<Flashcard[]>([]);
@@ -12,26 +12,29 @@ const PracticeView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [day, setDay] = useState<number>(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_DAY_KEY); //  Load persisted day
+    const stored = localStorage.getItem(LOCAL_STORAGE_DAY_KEY);
     return stored ? parseInt(stored, 10) : 0;
   });
   const [sessionFinished, setSessionFinished] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // Prevent double clicks
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Function to load cards for the current day
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Load flashcards
   const loadPracticeCards = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     setSessionFinished(false);
-    setPracticeCards([]); // Clear old cards immediately
+    setPracticeCards([]);
     setCurrentCardIndex(0);
     setShowBack(false);
 
     try {
-      const data: PracticeSession = await fetchPracticeCards(day); //  Pass day param
+      const data: PracticeSession = await fetchPracticeCards(day);
       setPracticeCards(data.cards);
-      setDay(data.day); //  Update local state (even if same)
-      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, data.day.toString()); //  Save to storage
+      setDay(data.day);
+      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, data.day.toString());
       if (data.cards.length === 0) {
         setSessionFinished(true);
       }
@@ -43,20 +46,31 @@ const PracticeView: React.FC = () => {
     }
   }, [day]);
 
-  // Load cards when the component mounts
   useEffect(() => {
     loadPracticeCards();
   }, [loadPracticeCards]);
 
-  // Handler to reveal the back of the card
-  const handleShowBack = () => {
-    setShowBack(true);
-  };
+  // Request and display camera feed
+  useEffect(() => {
+    const requestCameraAccess = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err: any) {
+        console.error('Camera access error:', err);
+        setCameraError('Unable to access your camera. Please allow camera access in your browser settings.');
+      }
+    };
 
-  // Handler for when the user selects a difficulty
+    requestCameraAccess();
+  }, []);
+
+  const handleShowBack = () => setShowBack(true);
+
   const handleAnswer = async (difficulty: AnswerDifficulty) => {
     if (isSubmitting || currentCardIndex >= practiceCards.length) return;
-
     const currentCard = practiceCards[currentCardIndex];
     if (!currentCard) return;
 
@@ -65,7 +79,6 @@ const PracticeView: React.FC = () => {
 
     try {
       await submitAnswer(currentCard.front, currentCard.back, difficulty);
-
       const nextIndex = currentCardIndex + 1;
       if (nextIndex >= practiceCards.length) {
         setSessionFinished(true);
@@ -81,23 +94,20 @@ const PracticeView: React.FC = () => {
     }
   };
 
-  // Handler for the "Go to Next Day" button
   const handleNextDay = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const result = await advanceDay(); //  Get next day from backend
-      setDay(result.currentDay); //  Update local state
-      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, result.currentDay.toString()); //  Save
+      const result = await advanceDay();
+      setDay(result.currentDay);
+      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, result.currentDay.toString());
       await loadPracticeCards();
     } catch (err) {
       console.error('Failed to advance day or load new cards:', err);
       setError('Failed to advance to the next day. Please try again.');
-      setIsLoading(false); // Ensure we stop the spinner on error
+      setIsLoading(false);
     }
   };
-
-  // --- Rendering Logic ---
 
   if (isLoading && practiceCards.length === 0) {
     return <div>Loading practice session...</div>;
@@ -154,6 +164,14 @@ const PracticeView: React.FC = () => {
     color: '#555',
   };
 
+  const videoStyle: React.CSSProperties = {
+    width: '100%',
+    maxHeight: '240px',
+    marginTop: '15px',
+    borderRadius: '8px',
+    backgroundColor: '#000',
+  };
+
   return (
     <div style={viewStyle}>
       <div style={infoStyle}>
@@ -200,6 +218,20 @@ const PracticeView: React.FC = () => {
 
       {(isSubmitting || isLoading) && (
         <div style={{ textAlign: 'center', marginTop: '10px' }}>Processing...</div>
+      )}
+
+      {/* Camera Feed */}
+      <video
+        ref={videoRef}
+        id="cameraFeed"
+        autoPlay
+        playsInline
+        muted
+        style={videoStyle}
+      ></video>
+
+      {cameraError && (
+        <div style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>{cameraError}</div>
       )}
     </div>
   );
