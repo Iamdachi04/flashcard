@@ -49,20 +49,20 @@ export const fetchPracticeCards = async (day: number): Promise<PracticeSession> 
  * @param difficulty - The difficulty level chosen by the user.
  * @returns A Promise resolving when the update is successful.
  */
-export const submitAnswer = async (
-  cardFront: string,
-  cardBack: string,
-  difficulty: AnswerDifficulty
-): Promise<void> => {
-  try {
-    const payload: UpdateRequest = { cardFront, cardBack, difficulty };
-    await apiClient.post('/update', payload);
-    console.log('Submitted answer for:', cardFront, 'Difficulty:', AnswerDifficulty[difficulty]);
-  } catch (error) {
-    console.error('Error submitting answer:', error);
-    throw error;
-  }
+/* ------------------------------------------------------------------ */
+/*  NEW submitAnswer – sends one object to /api/updatepractice        */
+/* ------------------------------------------------------------------ */
+export interface PracticePayload {
+  cardId: number;
+  timestamp: number;
+  difficulty: 1 | 2 | 3;   // 1 = easy, 2 = hard, 3 = wrong
+}
+
+export const submitAnswer = async (payload: PracticePayload): Promise<void> => {
+  // the backend route defined in the Person-1 tasks
+  await apiClient.post('/updatepractice', payload);
 };
+
 
 /**
  * Fetches a hint for a given flashcard.
