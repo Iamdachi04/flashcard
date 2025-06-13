@@ -1,240 +1,225 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Flashcard, AnswerDifficulty, PracticeSession } from '../types';
-import { fetchPracticeCards, submitAnswer, advanceDay } from '../services/api';
-import FlashcardDisplay from './FlashcardDisplay';
+// types.ts - Put this in a separate file for shared types
+export interface PracticeCard {
+    sign_name: string;
+    description: string;
+    image_url?: string;
+    // Add other card properties as needed
+}
 
-const LOCAL_STORAGE_DAY_KEY = 'currentPracticeDay';
+export interface SessionStatus {
+    currentDay: number;
+    isSessionActive: boolean;
+    cardCount: number;
+    cards: PracticeCard[];
+    cameraActive: boolean;
+    tensorFlowLoaded: boolean;
+    handDetected: boolean;
+    currentGesture: string | null;
+    gestureHoldTime: number;
+    lastGesture: string | null;
+}
 
-const PracticeView: React.FC = () => {
-  const [practiceCards, setPracticeCards] = useState<Flashcard[]>([]);
-  const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
-  const [showBack, setShowBack] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [day, setDay] = useState<number>(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_DAY_KEY);
-    return stored ? parseInt(stored, 10) : 0;
-  });
-  const [sessionFinished, setSessionFinished] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+export type GestureType = 'easy' | 'hard' | 'wrong' | null;
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [cameraError, setCameraError] = useState<string | null>(null);
+// PracticeSession.ts
+import { CameraManager } from './CameraManager';
+import { TensorFlowManager } from './TensorFlowManager';
+import { GestureRecognizer } from './GestureRecognizer';
+import { UIManager } from './UIManager';
+import { ApiService } from './ApiService';
+import { SessionStatus, PracticeCard, GestureType } from './types';
 
-  // Load flashcards
-  const loadPracticeCards = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setSessionFinished(false);
-    setPracticeCards([]);
-    setCurrentCardIndex(0);
-    setShowBack(false);
+export class PracticeSession {
+    private practiceCards: PracticeCard[];
+    private currentDay: number;
+    private isSessionActive: boolean;
+    
+    // Managers
+    private cameraManager: CameraManager;
+    private tensorFlowManager: TensorFlowManager;
+    private gestureRecognizer: GestureRecognizer;
+    private uiManager: UIManager;
+    private apiService: ApiService;
+    
+    // Practice state
+    private currentHandLandmarks: any[] | null; // Consider defining a proper type for landmarks
+    private currentRecognizedGesture: GestureType;
 
-    try {
-      const data: PracticeSession = await fetchPracticeCards(day);
-      setPracticeCards(data.cards);
-      setDay(data.day);
-      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, data.day.toString());
-      if (data.cards.length === 0) {
-        setSessionFinished(true);
-      }
-    } catch (err) {
-      console.error('Failed to load practice cards:', err);
-      setError('Failed to load practice cards. Please try again later.');
-    } finally {
-      setIsLoading(false);
+    constructor() {
+        this.practiceCards = [];
+        this.currentDay = this.getCurrentDay();
+        this.isSessionActive = false;
+        
+        // Initialize managers
+        this.cameraManager = new CameraManager();
+        this.tensorFlowManager = new TensorFlowManager();
+        this.gestureRecognizer = new GestureRecognizer();
+        this.uiManager = new UIManager();
+        this.apiService = new ApiService();
+        
+        // Practice state
+        this.currentHandLandmarks = null;
+        this.currentRecognizedGesture = null;
     }
-  }, [day]);
 
-  useEffect(() => {
-    loadPracticeCards();
-  }, [loadPracticeCards]);
+    // Day management with localStorage persistence
+    private getCurrentDay(): number {
+        const storedDay = localStorage.getItem('currentDay');
+        return storedDay ? parseInt(storedDay, 10) : 0;
+    }
 
-  // Request and display camera feed
-  useEffect(() => {
-    const requestCameraAccess = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+    private setCurrentDay(day: number): void {
+        this.currentDay = day;
+        localStorage.setItem('currentDay', day.toString());
+    }
+
+    public incrementDay(): void {
+        this.setCurrentDay(this.currentDay + 1);
+    }
+
+    // Main practice session start
+    public async startPracticeSession(): Promise<void> {
+        console.log('Starting practice session for day:', this.currentDay);
+        
+        try {
+            this.uiManager.showLoadingState();
+            
+            // Fetch practice cards
+            const practiceCards = await this.apiService.fetchPracticeCards(this.currentDay);
+            this.practiceCards = practiceCards;
+            
+            // Start camera
+            await this.cameraManager.startCamera();
+            
+            // Initialize TensorFlow after camera is ready
+            await this.tensorFlowManager.initialize();
+            
+            this.isSessionActive = true;
+            this.uiManager.hideLoadingState();
+            this.uiManager.initializePracticeUI(this.practiceCards);
+            
+            // Start hand detection loop
+            this.startHandDetection();
+            
+            console.log(`Practice session started with ${practiceCards.length} cards`);
+            
+        } catch (error) {
+            this.handlePracticeError(error as Error);
         }
-      } catch (err: any) {
-        console.error('Camera access error:', err);
-        setCameraError('Unable to access your camera. Please allow camera access in your browser settings.');
-      }
-    };
-
-    requestCameraAccess();
-  }, []);
-
-  const handleShowBack = () => setShowBack(true);
-
-  const handleAnswer = async (difficulty: AnswerDifficulty) => {
-    if (isSubmitting || currentCardIndex >= practiceCards.length) return;
-    const currentCard = practiceCards[currentCardIndex];
-    if (!currentCard) return;
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      await submitAnswer(currentCard.front, currentCard.back, difficulty);
-      const nextIndex = currentCardIndex + 1;
-      if (nextIndex >= practiceCards.length) {
-        setSessionFinished(true);
-      } else {
-        setCurrentCardIndex(nextIndex);
-        setShowBack(false);
-      }
-    } catch (err) {
-      console.error('Failed to submit answer:', err);
-      setError('Failed to submit answer. Please try again.');
-    } finally {
-      setIsSubmitting(false);
     }
-  };
 
-  const handleNextDay = async () => {
-    setError(null);
-    setIsLoading(true);
-    try {
-      const result = await advanceDay();
-      setDay(result.currentDay);
-      localStorage.setItem(LOCAL_STORAGE_DAY_KEY, result.currentDay.toString());
-      await loadPracticeCards();
-    } catch (err) {
-      console.error('Failed to advance day or load new cards:', err);
-      setError('Failed to advance to the next day. Please try again.');
-      setIsLoading(false);
+    // Stop practice session
+    public stopPracticeSession(): void {
+        console.log('Stopping practice session...');
+        
+        this.isSessionActive = false;
+        this.cameraManager.stopCamera();
+        this.tensorFlowManager.cleanup();
+        this.gestureRecognizer.reset();
+        
+        this.currentHandLandmarks = null;
+        this.currentRecognizedGesture = null;
+        
+        this.uiManager.hideGestureFeedback();
+        this.uiManager.updateHandDetectionStatus(0, null);
+        
+        console.log('Practice session stopped');
     }
-  };
 
-  if (isLoading && practiceCards.length === 0) {
-    return <div>Loading practice session...</div>;
-  }
+    // Hand detection processing loop
+    private startHandDetection(): void {
+        console.log('Starting hand detection loop...');
+        this.processFrame();
+    }
 
-  if (error && !isLoading) {
-    return <div style={{ color: 'red' }}>Error: {error}</div>;
-  }
+    private async processFrame(): Promise<void> {
+        const videoElement = document.getElementById('cameraFeed') as HTMLVideoElement;
+        
+        if (videoElement && this.isSessionActive) {
+            try {
+                const predictions = await this.tensorFlowManager.detectHands(videoElement);
+                
+                if (predictions.length > 0) {
+                    const landmarks = predictions[0].landmarks;
+                    console.log('Hand landmarks detected:', landmarks);
+                    
+                    // Recognize gesture
+                    const recognizedGesture = this.gestureRecognizer.detectGesture(landmarks);
+                    
+                    if (recognizedGesture) {
+                        console.log(`Gesture recognized: ${recognizedGesture.toUpperCase()}`);
+                        this.uiManager.showGestureFeedback(recognizedGesture);
+                        this.currentRecognizedGesture = recognizedGesture;
+                    } else {
+                        this.currentRecognizedGesture = null;
+                        this.uiManager.hideGestureFeedback();
+                    }
+                    
+                    this.uiManager.updateHandDetectionStatus(predictions.length, recognizedGesture);
+                    this.currentHandLandmarks = landmarks;
+                } else {
+                    this.uiManager.updateHandDetectionStatus(0, null);
+                    this.currentHandLandmarks = null;
+                    this.currentRecognizedGesture = null;
+                    this.uiManager.hideGestureFeedback();
+                }
+                
+            } catch (error) {
+                console.error('Frame processing error:', error);
+            }
+        }
+        
+        // Continue processing frames
+        if (this.isSessionActive) {
+            requestAnimationFrame(() => this.processFrame());
+        }
+    }
 
-  if (sessionFinished) {
-    return (
-      <div>
-        <h2>Session Complete for Day {day}!</h2>
-        <p>You have reviewed all cards scheduled for today.</p>
-        <button onClick={handleNextDay} disabled={isLoading}>
-          {isLoading ? 'Loading Next Day...' : 'Go to Next Day'}
-        </button>
-        {error && <div style={{ color: 'red', marginTop: '10px' }}>Error: {error}</div>}
-      </div>
-    );
-  }
+    // Error handling
+    private handlePracticeError(error: Error): void {
+        console.error('Practice session error:', error);
+        this.uiManager.hideLoadingState();
+        this.isSessionActive = false;
+        this.uiManager.showErrorMessage(
+            'Unable to start practice session. Please check your connection and try again.',
+            error.message,
+            'practice-error'
+        );
+    }
 
-  if (practiceCards.length === 0 || currentCardIndex >= practiceCards.length) {
-    return <div>No cards available or loading...</div>;
-  }
+    // Retry methods
+    public async retryPracticeSession(): Promise<void> {
+        this.uiManager.hideErrorMessage('practice-error');
+        await this.startPracticeSession();
+    }
 
-  const currentCard = practiceCards[currentCardIndex];
+    public async retryCamera(): Promise<void> {
+        this.uiManager.hideErrorMessage('camera-error');
+        await this.cameraManager.startCamera();
+    }
 
-  const viewStyle: React.CSSProperties = {
-    maxWidth: '600px',
-    margin: '20px auto',
-    padding: '20px',
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    backgroundColor: '#fff',
-  };
+    public async retryTensorFlow(): Promise<void> {
+        this.uiManager.hideErrorMessage('tensorflow-error');
+        await this.tensorFlowManager.initialize();
+    }
 
-  const controlsStyle: React.CSSProperties = {
-    marginTop: '20px',
-    display: 'flex',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  };
+    public checkCameraPermissions(): void {
+        this.cameraManager.checkPermissions();
+    }
 
-  const buttonStyle: React.CSSProperties = {
-    padding: '10px 20px',
-    fontSize: '1em',
-    cursor: 'pointer',
-  };
-
-  const infoStyle: React.CSSProperties = {
-    textAlign: 'center',
-    marginBottom: '15px',
-    color: '#555',
-  };
-
-  const videoStyle: React.CSSProperties = {
-    width: '100%',
-    maxHeight: '240px',
-    marginTop: '15px',
-    borderRadius: '8px',
-    backgroundColor: '#000',
-  };
-
-  return (
-    <div style={viewStyle}>
-      <div style={infoStyle}>
-        Day: {day} | Card {currentCardIndex + 1} of {practiceCards.length}
-      </div>
-
-      <FlashcardDisplay card={currentCard} showBack={showBack} />
-
-      {error && (
-        <div style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>Error: {error}</div>
-      )}
-
-      <div style={controlsStyle}>
-        {!showBack ? (
-          <button style={buttonStyle} onClick={handleShowBack} disabled={isSubmitting || isLoading}>
-            Show Answer
-          </button>
-        ) : (
-          <>
-            <button
-              style={{ ...buttonStyle, backgroundColor: '#ffdddd' }}
-              onClick={() => handleAnswer(AnswerDifficulty.Wrong)}
-              disabled={isSubmitting || isLoading}
-            >
-              Wrong
-            </button>
-            <button
-              style={{ ...buttonStyle, backgroundColor: '#ffffcc' }}
-              onClick={() => handleAnswer(AnswerDifficulty.Hard)}
-              disabled={isSubmitting || isLoading}
-            >
-              Hard
-            </button>
-            <button
-              style={{ ...buttonStyle, backgroundColor: '#ddffdd' }}
-              onClick={() => handleAnswer(AnswerDifficulty.Easy)}
-              disabled={isSubmitting || isLoading}
-            >
-              Easy
-            </button>
-          </>
-        )}
-      </div>
-
-      {(isSubmitting || isLoading) && (
-        <div style={{ textAlign: 'center', marginTop: '10px' }}>Processing...</div>
-      )}
-
-      {/* Camera Feed */}
-      <video
-        ref={videoRef}
-        id="cameraFeed"
-        autoPlay
-        playsInline
-        muted
-        style={videoStyle}
-      ></video>
-
-      {cameraError && (
-        <div style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>{cameraError}</div>
-      )}
-    </div>
-  );
-};
-
-export default PracticeView;
+    // Debug method
+    public getSessionStatus(): SessionStatus {
+        return {
+            currentDay: this.currentDay,
+            isSessionActive: this.isSessionActive,
+            cardCount: this.practiceCards.length,
+            cards: this.practiceCards,
+            cameraActive: this.cameraManager.isActive(),
+            tensorFlowLoaded: this.tensorFlowManager.isLoaded(),
+            handDetected: !!this.currentHandLandmarks,
+            currentGesture: this.currentRecognizedGesture,
+            gestureHoldTime: this.gestureRecognizer.getHoldTime(),
+            lastGesture: this.gestureRecognizer.getLastGesture()
+        };
+    }
+}
