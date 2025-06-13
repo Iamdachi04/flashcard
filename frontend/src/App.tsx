@@ -1,7 +1,7 @@
 // frontend/src/App.tsx
 
 import React from 'react';
-import PracticeView from './components/PracticeView';
+import PracticeView from './components/PracticeView.tsx';
 import './App.css'; // Assuming you have or will create some basic CSS
 
 function App() {

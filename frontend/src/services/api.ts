@@ -23,19 +23,24 @@ const apiClient = axios.create({
 
 /**
  * Fetches the list of cards to practice for the current day.
+ * Modified to accept `day` as a query parameter to match frontend logic.
+ * @param day - The current day of the practice session.
  * @returns A Promise resolving to the PracticeSession data.
  */
-export const fetchPracticeCards = async (): Promise<PracticeSession> => {
+export const fetchPracticeCards = async (day: number): Promise<PracticeSession> => {
   try {
-    const response = await apiClient.get<PracticeSession>('/practice');
-    console.log('Fetched practice cards:', response.data);
+    // Pass day as query param ?day=0
+    const response = await apiClient.get<PracticeSession>('/practice', {
+      params: { day },
+    });
+    console.log('Fetched practice cards for day', day, ':', response.data);
     return response.data;
   } catch (error) {
     console.error('Error fetching practice cards:', error);
-    // Re-throw or handle more gracefully (e.g., return default state)
     throw error;
   }
 };
+
 
 /**
  * Submits the user's answer (difficulty) for a specific card.
@@ -44,20 +49,20 @@ export const fetchPracticeCards = async (): Promise<PracticeSession> => {
  * @param difficulty - The difficulty level chosen by the user.
  * @returns A Promise resolving when the update is successful.
  */
-export const submitAnswer = async (
-  cardFront: string,
-  cardBack: string,
-  difficulty: AnswerDifficulty
-): Promise<void> => {
-  try {
-    const payload: UpdateRequest = { cardFront, cardBack, difficulty };
-    await apiClient.post('/update', payload);
-    console.log('Submitted answer for:', cardFront, 'Difficulty:', AnswerDifficulty[difficulty]);
-  } catch (error) {
-    console.error('Error submitting answer:', error);
-    throw error;
-  }
+/* ------------------------------------------------------------------ */
+/*  NEW submitAnswer – sends one object to /api/updatepractice        */
+/* ------------------------------------------------------------------ */
+export interface PracticePayload {
+  cardId: number;
+  timestamp: number;
+  difficulty: 1 | 2 | 3;   // 1 = easy, 2 = hard, 3 = wrong
+}
+
+export const submitAnswer = async (payload: PracticePayload): Promise<void> => {
+  // the backend route defined in the Person-1 tasks
+  await apiClient.post('/updatepractice', payload);
 };
+
 
 /**
  * Fetches a hint for a given flashcard.
